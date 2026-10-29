@@ -1,0 +1,35 @@
+{
+  "name": "API Override",
+  "version": "1.0.0",
+  "description": "Modern React Ajax/Fetch interceptor with groups and import/export",
+  "permissions": ["storage", "scripting", "sidePanel"],
+  "background": {
+    "service_worker": "service_worker.js"
+  },
+  "icons": {
+    "16": "images/16_gray.png",
+    "32": "images/32_gray.png",
+    "48": "images/48.png",
+    "128": "images/128.png"
+  },
+  "manifest_version": 3,
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "pageScripts/main.js",
+        "bundle.js"
+      ],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "action": {},
+  "content_security_policy": {},
+  "host_permissions": ["http://*/", "https://*/"],
+  "options_ui": {
+    "page": "index.html?mode=options",
+    "open_in_tab": true
+  },
+  "side_panel": {
+    "default_path": "index.html?mode=sidepanel"
+  }
+}
