@@ -35,22 +35,53 @@ export const matchPattern = (match: string, url: string): boolean => {
   }
 };
 
-export const matchesRule = (rule: RuleLike | null | undefined, url: string, method = 'GET'): boolean => {
+/**
+ * 请求体匹配：规则配置了 matchBody 时才校验，语义与 match 一致（normal=包含/通配，regex=正则）。
+ * bodyText 由调用方先用 stringifyRequestBody 转成字符串。
+ */
+export const matchBodyPattern = (rule: RuleLike, bodyText: string): boolean => {
+  const pattern = String(rule.matchBody || '');
+  if (!pattern) return true;
+  if (rule.filterType === FILTER_TYPE.REGEX) {
+    try {
+      return new RegExp(pattern, 'i').test(bodyText);
+    } catch {
+      return false;
+    }
+  }
+  return matchPattern(pattern, bodyText);
+};
+
+/** 请求体统一转字符串：字符串/URLSearchParams 原样，FormData 拼成 k=v，二进制解码，对象 JSON 序列化。 */
+export const stringifyRequestBody = (body: unknown): string => {
+  if (body === undefined || body === null) return '';
+  if (typeof body === 'string') return body;
+  if (typeof URLSearchParams !== 'undefined' && body instanceof URLSearchParams) return String(body);
+  if (typeof FormData !== 'undefined' && body instanceof FormData) {
+    return [...body.entries()].map(([key, value]) => `${key}=${value}`).join('&');
+  }
+  if (typeof ArrayBuffer !== 'undefined' && (body instanceof ArrayBuffer || ArrayBuffer.isView(body))) {
+    return new TextDecoder().decode(body as ArrayBuffer);
+  }
+  return stringifyBody(body);
+};
+
+export const matchesRule = (rule: RuleLike | null | undefined, url: string, method = 'GET', bodyText = ''): boolean => {
   if (!rule || rule.switchOn === false || !url) return false;
   const limitMethod = String(rule.limitMethod || 'ALL').toUpperCase();
   if (limitMethod !== 'ALL' && limitMethod !== String(method).toUpperCase()) return false;
   if (rule.filterType === FILTER_TYPE.REGEX) {
     try {
-      return new RegExp(String(rule.match || ''), 'i').test(url);
+      return new RegExp(String(rule.match || ''), 'i').test(url) && matchBodyPattern(rule, bodyText);
     } catch {
       return false;
     }
   }
-  return typeof rule.match === 'string' && matchPattern(rule.match, url);
+  return typeof rule.match === 'string' && matchPattern(rule.match, url) && matchBodyPattern(rule, bodyText);
 };
 
-export const findMatchedRule = (rules: RuleLike[] = [], url: string, method = 'GET'): RuleLike | undefined =>
-  rules.find((rule) => matchesRule(rule, url, method));
+export const findMatchedRule = (rules: RuleLike[] = [], url: string, method = 'GET', bodyText = ''): RuleLike | undefined =>
+  rules.find((rule) => matchesRule(rule, url, method, bodyText));
 
 export const decodeDataUrl = (dataUrl: unknown): Uint8Array => {
   if (!dataUrl || typeof dataUrl !== 'string') return new Uint8Array();

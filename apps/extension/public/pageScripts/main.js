@@ -23,16 +23,21 @@ var s={Handler:a,Random:u,Util:o,XHR:r,RE:i,toJSONSchema:l,valid:c,heredoc:o.her
 })();
 // ===== End Vendored Mock.js =====
 
+// 内置 Mock.js 已通过上方 UMD 挂到 window.Mock，页面与规则（覆盖内容、专家函数）可直接调用 Mock.mock / Mock.Random 等；
+// 内部模板处理统一使用这里的引用，避免页面后续加载自己的 Mock 影响行为
+const vendoredMock = window.Mock
+
 
 const hasResponseOverride = rule => Boolean(rule && (rule.overrideTxt || rule.overrideResponseFunc || (rule.responseType === 'file' && rule.responseFileData) || Object.keys(rule.responseHeaders || {}).length))
 const parseResponseHeaders = value => { if (!value) return {}; if (typeof value === 'object' && !Array.isArray(value)) return value; try { const parsed = JSON.parse(value); return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {} } catch { return {} } }
 const decodeDataUrl = dataUrl => { if (!dataUrl || typeof dataUrl !== 'string') return new Uint8Array(); const comma = dataUrl.indexOf(','); if (comma < 0) return new TextEncoder().encode(dataUrl); const meta = dataUrl.slice(0, comma); const value = dataUrl.slice(comma + 1); if (meta.includes(';base64')) { const binary = atob(value); return Uint8Array.from(binary, char => char.charCodeAt(0)) } return new TextEncoder().encode(decodeURIComponent(value)) }
 const responseBytes = rule => rule?.responseType === 'file' ? decodeDataUrl(rule.responseFileData) : new TextEncoder().encode(String(rule?.overrideTxt ?? ''))
-// Mock.js 模板支持：json/text 响应应用 Mock.mock()（@占位符 与 'name|rule' 数据模板），file 类型跳过；含 @ 或 "|规则键" 才处理，普通内容原样返回
+// Mock.js 模板支持：json/text 响应应用 Mock.mock()（@占位符 与 'name|rule' 数据模板），其余类型（file/js/html/css）按字面返回；
+// 含 @ 或 "|规则键" 才处理，普通内容原样返回
 const mockResponseText = (text, responseType) => {
-  const Mock = globalThis.Mock
+  const Mock = vendoredMock || globalThis.Mock
   if (!Mock) { console.warn('[Ajax Modifier] Mock.js 未加载，@模板跳过处理（内置 Mock 初始化失败，请重载扩展后刷新页面）'); return text }
-  if (!text || responseType === 'file') return text
+  if (!text || (responseType !== 'json' && responseType !== 'text')) return text
   const looksLikeTemplate = text.includes('@') || /"[^"]*\|"/.test(text)
   if (!looksLikeTemplate) return text
   if (responseType !== 'text') {
@@ -60,7 +65,7 @@ const mergeJsonResponse = (originalText, patchText) => {
     return patchText
   }
 }
-const applyResponseHeaders = (headers, rule) => { const next = new Headers(headers || {}); Object.entries(parseResponseHeaders(rule?.responseHeaders || rule?.overrideHeaders)).forEach(([key, value]) => next.set(key, String(value))); if (rule?.responseType === 'file' && rule.responseFileType && !next.has('Content-Type')) next.set('Content-Type', rule.responseFileType); const responseType = rule?.responseType ?? 'json' /* 缺省按 json 处理 */; if (responseType === 'json' && !next.has('Content-Type')) next.set('Content-Type', 'application/json'); if (responseType === 'text' && !next.has('Content-Type')) next.set('Content-Type', 'text/plain'); return next }
+const applyResponseHeaders = (headers, rule) => { const next = new Headers(headers || {}); Object.entries(parseResponseHeaders(rule?.responseHeaders || rule?.overrideHeaders)).forEach(([key, value]) => next.set(key, String(value))); if (rule?.responseType === 'file' && rule.responseFileType && !next.has('Content-Type')) next.set('Content-Type', rule.responseFileType); const responseType = rule?.responseType ?? 'json' /* 缺省按 json 处理 */; if (responseType === 'json' && !next.has('Content-Type')) next.set('Content-Type', 'application/json'); if (responseType === 'js' && !next.has('Content-Type')) next.set('Content-Type', 'application/javascript'); if (responseType === 'html' && !next.has('Content-Type')) next.set('Content-Type', 'text/html'); if (responseType === 'css' && !next.has('Content-Type')) next.set('Content-Type', 'text/css'); if (responseType === 'text' && !next.has('Content-Type')) next.set('Content-Type', 'text/plain'); return next }
 
 // 命名空间
 let ajax_interceptor_qoweifjqon = {
@@ -69,14 +74,36 @@ let ajax_interceptor_qoweifjqon = {
     ajaxInterceptor_always200On: true, // 默认开启，后期可以扩展成设置项
     ajaxInterceptor_rules: [],
   },
+  // 请求体统一转字符串：用于请求体匹配（string 原样，URLSearchParams/FormData/二进制/对象各自动转换）
+  stringifyRequestBody: (body) => {
+    if (body === undefined || body === null) return ''
+    if (typeof body === 'string') return body
+    if (typeof URLSearchParams !== 'undefined' && body instanceof URLSearchParams) return String(body)
+    if (typeof FormData !== 'undefined' && body instanceof FormData) {
+      return [...body.entries()].map(([key, value]) => `${key}=${value}`).join('&')
+    }
+    if (typeof ArrayBuffer !== 'undefined' && (body instanceof ArrayBuffer || ArrayBuffer.isView(body))) {
+      return new TextDecoder().decode(body)
+    }
+    try {
+      return JSON.stringify(body)
+    } catch {
+      return String(body)
+    }
+  },
+  // 是否存在配置了请求体匹配的规则（决定是否需要在 send / fetch 阶段提取请求体）
+  hasBodyMatchRules: () => {
+    return (ajax_interceptor_qoweifjqon.settings.ajaxInterceptor_rules || []).some(item => item && typeof item.matchBody === 'string' && item.matchBody)
+  },
   // 获取匹配到的规则项
   getMatchedInterface: ({
     thisRequestUrl = '',
-    thisMethod = ''
+    thisMethod = '',
+    thisRequestBody = ''
   }) => {
     return ajax_interceptor_qoweifjqon.settings.ajaxInterceptor_rules.find(item => {
       const {
-        filterType = 'normal', limitMethod = 'ALL', switchOn = true, match
+        filterType = 'normal', limitMethod = 'ALL', switchOn = true, match, matchBody
       } = item
       const matchedMethod = thisMethod === limitMethod || limitMethod === 'ALL'
       let matchedRequest = false
@@ -98,7 +125,26 @@ let ajax_interceptor_qoweifjqon = {
           matchedRequest = false
         }
       }
-      return switchOn && matchedMethod && matchedRequest
+      // 请求体匹配：仅在规则配置了 matchBody 时校验，语义与 match 一致（normal=包含/通配，regex=正则）
+      let matchedBody = true
+      if (typeof matchBody === 'string' && matchBody) {
+        if (filterType === 'regex') {
+          try {
+            matchedBody = new RegExp(matchBody, 'i').test(thisRequestBody)
+          } catch {
+            matchedBody = false
+          }
+        } else if (matchBody.includes('*')) {
+          try {
+            matchedBody = new RegExp(matchBody.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*'), 'i').test(thisRequestBody)
+          } catch {
+            matchedBody = false
+          }
+        } else {
+          matchedBody = typeof thisRequestBody === 'string' && thisRequestBody.indexOf(matchBody) > -1
+        }
+      }
+      return switchOn && matchedMethod && matchedRequest && matchedBody
     })
   },
   // 执行用户输入的函数，如果有错误会抛出到控制台
@@ -221,8 +267,11 @@ let ajax_interceptor_qoweifjqon = {
         this._responseHeaders = parseResponseHeaders(responseHeaders || matchedInterface.overrideHeaders)
         const noContentType = !Object.keys(this._responseHeaders).some(key => key.toLowerCase() === 'content-type')
         if (responseType === 'file' && responseFileType && noContentType) this._responseHeaders['Content-Type'] = responseFileType
-        // 缺省（json）header 兜底：json 补 application/json，text 补 text/plain
+        // 缺省（json）header 兜底：json 补 application/json，js/html/css 补对应类型，text 补 text/plain
         else if (responseType === 'json' && noContentType) this._responseHeaders['Content-Type'] = 'application/json'
+        else if (responseType === 'js' && noContentType) this._responseHeaders['Content-Type'] = 'application/javascript'
+        else if (responseType === 'html' && noContentType) this._responseHeaders['Content-Type'] = 'text/html'
+        else if (responseType === 'css' && noContentType) this._responseHeaders['Content-Type'] = 'text/css'
         else if (responseType === 'text' && noContentType) this._responseHeaders['Content-Type'] = 'text/plain'
 if (!pageScriptEventDispatched) {
           window.dispatchEvent(new CustomEvent("pageScript", {
@@ -305,12 +354,22 @@ if (!pageScriptEventDispatched) {
         continue
       } else if (attr === 'send') {
         this.send = (...args) => {
+          // 请求体匹配：open 阶段拿不到请求体，存在 matchBody 规则时在 send 阶段按请求体重新匹配
+          if (ajax_interceptor_qoweifjqon.hasBodyMatchRules()) {
+            const [method, requestUrl] = this._openArgs
+            this._matchedInterface = ajax_interceptor_qoweifjqon.getMatchedInterface({
+              thisRequestUrl: ajax_interceptor_qoweifjqon.getCompleteUrl(requestUrl),
+              thisMethod: method,
+              thisRequestBody: ajax_interceptor_qoweifjqon.stringifyRequestBody(args[0])
+            })
+          }
           const matchedInterface = this._matchedInterface
           if (matchedInterface) {
             // modify headers
             const {
               overrideHeadersFunc,
               overridePayloadFunc,
+              overridePayload,
               isExpert = false
             } = matchedInterface
             if (overrideHeadersFunc && isExpert) {
@@ -323,6 +382,9 @@ if (!pageScriptEventDispatched) {
             const [method] = this._openArgs
             if (overridePayloadFunc && isExpert && method !== 'GET') {
               args[0] = ajax_interceptor_qoweifjqon.executeStringFunction(overridePayloadFunc, args[0], 'payload');
+            } else if (overridePayload && method !== 'GET') {
+              // 普通模式请求体覆盖：用 overridePayload 替换请求体（支持 Mock.js 模板），专家函数优先
+              args[0] = mockResponseText(String(overridePayload), 'json')
             }
           }
           this._sendArgs = args
@@ -443,17 +505,37 @@ if (!pageScriptEventDispatched) {
 
     let bodyData = data?.body
 
+    // 请求体匹配：有规则配置了 matchBody 时，先提取请求体文本再匹配（流式请求体读出后回填，保证请求仍可正常发送）
+    if (ajax_interceptor_qoweifjqon.hasBodyMatchRules()) {
+      let bodySource = bodyData
+      if (isReadableStream(bodySource)) {
+        bodySource = await readReadableStream(bodySource)
+        if (data instanceof Request) {
+          args[0] = new Request(args[0], {
+            body: createReadableStream(bodySource),
+            duplex: 'half'
+          });
+          data = args[0]
+        } else if (data) {
+          data.body = createReadableStream(bodySource)
+        }
+      }
+      bodyData = ajax_interceptor_qoweifjqon.stringifyRequestBody(bodySource)
+    }
+
     const matchedInterface = ajax_interceptor_qoweifjqon.getMatchedInterface({
       thisRequestUrl: ajax_interceptor_qoweifjqon.getCompleteUrl(inputUrl),
-      thisMethod: data && data.method
+      thisMethod: data && data.method,
+      thisRequestBody: typeof bodyData === 'string' ? bodyData : ''
     })
     if (matchedInterface && args) {
-      if (bodyData && isReadableStream(data.body)) {
+      if (bodyData && typeof bodyData !== 'string' && isReadableStream(data.body)) {
         bodyData = await readReadableStream(bodyData)
       }
       const {
         overrideHeadersFunc,
         overridePayloadFunc,
+        overridePayload,
         isExpert = false
       } = matchedInterface;
       if (overrideHeadersFunc && isExpert && data) {
@@ -482,6 +564,22 @@ if (!pageScriptEventDispatched) {
             });
           } else {
             data.body = dataer
+          }
+        }
+      } else if (overridePayload && requestUrl) {
+        // 普通模式请求体覆盖：非 GET/HEAD 请求用 overridePayload 替换请求体（支持 Mock.js 模板），专家函数优先
+        const method = String(data?.method || 'GET').toUpperCase()
+        if (!['GET', 'HEAD'].includes(method)) {
+          const payloadText = mockResponseText(String(overridePayload), 'json')
+          if (isReadableStream(data?.body)) {
+            args[0] = new Request(args[0], { body: createReadableStream(payloadText), duplex: 'half' })
+          } else if (data instanceof Request) {
+            // Request 的 body 只读，需用 init 重建；method/headers 等其余字段沿用原请求
+            args[0] = new Request(args[0], { body: payloadText })
+          } else if (data) {
+            data.body = payloadText
+          } else {
+            args[1] = { body: payloadText }
           }
         }
       }

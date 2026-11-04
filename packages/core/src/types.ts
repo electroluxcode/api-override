@@ -1,6 +1,6 @@
 export type RuleFilterType = 'normal' | 'regex';
 export type RequestMethod = 'ALL' | 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | string;
-export type ResponseType = 'json' | 'text' | 'file';
+export type ResponseType = 'json' | 'text' | 'file' | 'js' | 'html' | 'css';
 export type OverrideMode = 'full' | 'incremental';
 export type ProxyProtocol = 'http' | 'https';
 export type UiLanguage = 'zh-CN' | 'en-US' | string;
@@ -12,12 +12,15 @@ export interface Rule {
   key: string;
   label: string;
   match: string;
+  /** 请求体匹配串（可选）：与 match 同语义（normal=包含/通配，regex=正则），空串不校验 */
+  matchBody?: string;
   switchOn: boolean;
   filterType: RuleFilterType;
   limitMethod: RequestMethod;
   responseType: ResponseType;
   overrideMode: OverrideMode;
   overrideTxt: string;
+  overridePayload?: string;
   responseHeaders: ResponseHeaders;
   overrideHeaders?: ResponseHeaders | string;
   responseFileName: string;
@@ -66,6 +69,7 @@ export interface AppSettings {
   ui_language: UiLanguage;
   ui_theme: UiTheme;
   ui_sidebar_collapsed: boolean;
+  ui_autosave?: boolean;
   proxyEnabled: boolean;
   proxyMode?: string;
   proxyControlUrl: string;
@@ -78,12 +82,6 @@ export interface ProxyConfig {
   groups: RuleGroup[];
   rules: Rule[];
   updatedAt: string | null;
-}
-
-export interface TranslationLabels {
-  file: string;
-  text: string;
-  json: string;
 }
 
 export interface ExportData {

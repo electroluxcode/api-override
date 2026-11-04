@@ -1,4 +1,4 @@
-import type { AppSettings, ExportData, ResponseHeaders, Rule, RuleGroup, RuleInput, TranslationLabels } from './types';
+import type { AppSettings, ExportData, ResponseHeaders, Rule, RuleGroup, RuleInput } from './types';
 import { stringifyBody } from './interceptor';
 import { FILTER_TYPE, OVERRIDE_MODE, RESPONSE_TYPE } from './constants';
 
@@ -36,6 +36,7 @@ export const createRule = (overrides: RuleInput = {}): Rule =>
     key: uid(),
     label: 'mock data',
     match: '/api/test',
+    matchBody: '',
     switchOn: true,
     filterType: FILTER_TYPE.NORMAL,
     limitMethod: 'ALL',
@@ -47,6 +48,8 @@ export const createRule = (overrides: RuleInput = {}): Rule =>
     ...overrides,
     // overrideTxt 允许直接写 JSON 对象/数组，导入时统一序列化为字符串
     overrideTxt: stringifyBody(overrides.overrideTxt ?? MOCK_RESPONSE),
+    // 请求体覆盖：非 GET 请求用该内容替换请求体，同样允许直接写 JSON 对象
+    overridePayload: stringifyBody(overrides.overridePayload ?? ''),
     responseHeaders: parseHeaders(overrides.responseHeaders || overrides.overrideHeaders)
   }) as Rule;
 
@@ -102,9 +105,19 @@ export const flattenRules = (groups: RuleGroup[]): Rule[] =>
     }))
   );
 
-export const responseLabel = (rule: Rule, t: TranslationLabels): string => {
-  if (rule.responseType === RESPONSE_TYPE.FILE) return `${t.file}${rule.responseFileName ? ` · ${rule.responseFileName}` : ''}`;
-  return rule.responseType === RESPONSE_TYPE.TEXT ? t.text : t.json;
+/** 响应格式展示名：通用格式名，不做国际化 */
+const RESPONSE_TYPE_LABELS: Record<string, string> = {
+  [RESPONSE_TYPE.JSON]: 'JSON',
+  [RESPONSE_TYPE.TEXT]: 'Text',
+  [RESPONSE_TYPE.JS]: 'JavaScript',
+  [RESPONSE_TYPE.HTML]: 'HTML',
+  [RESPONSE_TYPE.CSS]: 'CSS',
+  [RESPONSE_TYPE.FILE]: 'File'
+};
+
+export const responseLabel = (rule: Rule): string => {
+  if (rule.responseType === RESPONSE_TYPE.FILE) return `${RESPONSE_TYPE_LABELS[RESPONSE_TYPE.FILE]}${rule.responseFileName ? ` · ${rule.responseFileName}` : ''}`;
+  return RESPONSE_TYPE_LABELS[rule.responseType] ?? RESPONSE_TYPE_LABELS[RESPONSE_TYPE.JSON];
 };
 
 export const exportData = (groups: RuleGroup[]): ExportData => ({ version: 1, groups });
