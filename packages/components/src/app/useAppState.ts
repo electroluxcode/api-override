@@ -47,6 +47,7 @@ export default function useAppState(initialSettings: AppSettings) {
   const [globalOn, setGlobalOn] = useState(Boolean(initialSettings.ajaxInterceptor_switchOn));
   const [language, setLanguage] = useState(initialSettings.ui_language || 'zh-CN');
   const [theme, setTheme] = useState(initialSettings.ui_theme || THEME.DARK);
+  const [autoSave, setAutoSave] = useState(Boolean(initialSettings.ui_autosave));
   const [customFunction, setCustomFunction] = useState(initialSettings.customFunction || { panelPosition: 0 });
   const localProxyAvailable = true;
   const [proxyEnabled, setProxyEnabled] = useState(Boolean(initialSettings.proxyEnabled));
@@ -138,6 +139,7 @@ export default function useAppState(initialSettings: AppSettings) {
     saveSetting('ui_theme', theme);
   }, [theme]);
   useEffect(() => saveSetting('ui_language', language), [language]);
+  useEffect(() => saveSetting('ui_autosave', autoSave), [autoSave]);
   useEffect(() => saveSetting('ui_sidebar_collapsed', sidebarCollapsed), [sidebarCollapsed]);
   useEffect(() => saveSetting('customFunction', customFunction), [customFunction]);
   useEffect(() => saveSetting('proxyEnabled', proxyEnabled), [proxyEnabled]);
@@ -213,6 +215,17 @@ export default function useAppState(initialSettings: AppSettings) {
     openPage(VIEW.RULES);
   };
   const renameGroup = (id, name) => updateGroup(id, { name });
+  // 拖拽排序与右键置顶/置底共用：把 fromIndex 的分组移动到 toIndex
+  const reorderGroups = (fromIndex, toIndex) =>
+    setGroups((items) => {
+      if (fromIndex < 0 || fromIndex >= items.length) return items;
+      const target = Math.max(0, Math.min(items.length - 1, toIndex));
+      if (fromIndex === target) return items;
+      const next = [...items];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(target, 0, moved);
+      return next;
+    });
   const toggleGroup = (id) => updateGroup(id, { enabled: !groups.find((group) => group.id === id)?.enabled });
   const updateRule = (key, patch) =>
     setGroups((items) => items.map((group) => ({ ...group, rules: group.rules.map((rule) => (rule.key === key ? { ...rule, ...patch } : rule)) })));
@@ -351,6 +364,8 @@ export default function useAppState(initialSettings: AppSettings) {
     setLanguage,
     theme,
     setTheme,
+    autoSave,
+    setAutoSave,
     customFunction,
     setCustomFunction,
     sidebarCollapsed,
@@ -366,6 +381,7 @@ export default function useAppState(initialSettings: AppSettings) {
     addGroup,
     selectGroup,
     renameGroup,
+    reorderGroups,
     toggleGroup,
     addRuleToGroup,
     duplicateRule,

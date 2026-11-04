@@ -91,7 +91,10 @@
     min-height: 0;
   }
   body {
-    overflow: hidden;
+    /* 侧边栏（Side Panel）可被拖得很窄：内容保底 300px，更窄时横向滚动 */
+    min-width: 300px;
+    overflow-x: auto;
+    overflow-y: hidden;
     background: var(--background);
     color: var(--foreground);
   }

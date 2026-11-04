@@ -4,7 +4,10 @@ import type { OverrideMode, ResponseType, RuleFilterType, UiTheme } from './type
 export const RESPONSE_TYPE = {
   JSON: 'json',
   TEXT: 'text',
-  FILE: 'file'
+  FILE: 'file',
+  JS: 'js',
+  HTML: 'html',
+  CSS: 'css'
 } as const satisfies Record<string, ResponseType>;
 
 /** Rule.overrideMode 的合法取值 */

@@ -47,7 +47,7 @@ export const I18N = {
 \`\`\`ts
 type RuleFilterType = 'normal' | 'regex';
 type RequestMethod = 'ALL' | 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-type ResponseType = 'json' | 'text' | 'file';
+type ResponseType = 'json' | 'text' | 'file' | 'js' | 'html' | 'css';
 type OverrideMode = 'full' | 'incremental';
 
 interface Rule {
@@ -59,7 +59,8 @@ interface Rule {
   limitMethod?: RequestMethod;        // 默认 'ALL'
   responseType?: ResponseType;        // 默认 'json'
   overrideMode?: OverrideMode;        // 默认 'full'，incremental 仅对 JSON 生效
-  overrideTxt?: string;               // 覆盖后的响应体（JSON 为字符串化的 JSON）
+  overrideTxt?: string;               // 覆盖后的响应体：json/text 为内容字符串，js/html/css 为脚本或静态资源内容（按字面返回）
+  overridePayload?: string;           // 覆盖请求体（非 GET 请求），支持 Mock.js 模板
   responseHeaders?: Record<string, string>; // 追加或覆盖的响应头
   responseFileName?: string;          // responseType 为 'file' 时的文件名
   responseFileType?: string;          // 如 'application/json'
@@ -98,7 +99,18 @@ interface ExportData {
 \`\`\`
 - \`@cname\`、\`@email\`、\`@integer(18,60)\`、\`@date\`、\`@image\` 等全部 Mock.js 占位符可用，语法以 Mock.js 官方文档为准。
 - 支持数据模板：\`"list|1-5"\`（随机条数）、\`"id|+1"\`（自增）、\`"price|10-99.2"\`（范围小数）等。
-- 不含占位符与模板键的内容原样返回；专业模式响应函数中可直接使用 \`window.Mock\`。
+- 不含占位符与模板键的内容原样返回；请求体覆盖 overridePayload 同样支持上述模板语法。
+- 内置 Mock.js 已挂到页面 \`window.Mock\`：规则内容（响应/请求体）与专家函数中可直接调用 \`Mock.mock(...)\`、\`Mock.Random.xxx()\` 等。
+
+## JS / HTML / CSS 响应格式
+responseType 为 'js' / 'html' / 'css' 时，overrideTxt 填对应内容，命中后按字面返回（适合拦截 .js/.html/.css 静态资源请求并替换内容）：
+\`\`\`js
+// responseType 'js'：替换页面加载的某个脚本
+console.log('mocked script loaded');
+window.__MOCK_FLAG__ = true;
+\`\`\`
+- 内容不做 Mock 模板处理，按字面返回；需要动态数据时用 responseType 'json'/'text' 或专家模式。
+- Content-Type 缺省：js → application/javascript，html → text/html，css → text/css，可用 responseHeaders 覆盖。
 
 ## 注意事项
 - 导入按 name 合并：与现有规则组同名时覆盖该组全部内容，不同名则追加为新分组，不影响其他分组。
@@ -124,6 +136,8 @@ interface ExportData {
     languageDescription: '选择界面显示语言',
     theme: '主题',
     themeDescription: '选择浅色或深色主题',
+    autoSave: '自动保存',
+    autoSaveDescription: '修改后立即生效，无需手动确认',
     enabled: '已启用',
     disabled: '已禁用',
     groups: '规则组',
@@ -135,11 +149,23 @@ interface ExportData {
     confirmBatchDelete: '确认删除选中的规则组？',
     groupName: '分组名称',
     ruleName: '规则名称',
+    save: '保存',
+    unsavedHint: '有未保存的修改',
+    batchEdit: '批量编辑',
+    batchEditHint: '每行一条参数，格式为 key=value，确认后写回匹配地址',
+    addParam: '添加参数',
+    paramRegexHint: '正则匹配模式下不支持 Query 参数表格，可直接在匹配地址中书写',
+    tabBody: 'Body',
+    tabHeaders: 'Headers',
     match: '匹配地址',
     filter: '匹配方式',
     method: '请求方法',
     response: '响应内容',
     headers: '响应 Headers',
+    requestPayload: '请求 Payload',
+    matchBody: 'Body 匹配',
+    matchBodyHint: '按请求体内容区分同一地址的不同请求，匹配方式跟随上方（包含/正则），留空不校验。',
+    payloadHint: '非 GET 请求发送时以此内容替换请求体，留空不修改；支持 Mock.js 模板（如 @cname、@integer(1,100)）。',
     normal: '包含',
     regex: '正则',
     all: '全部',
@@ -165,9 +191,7 @@ interface ExportData {
     importSuccess: '导入成功',
     invalidFile: '文件格式无效',
     responseType: '响应格式',
-    text: '文本',
-    json: 'JSON',
-    file: '文件',
+    jsHint: '返回 JavaScript 脚本内容（按字面响应，不做 Mock 模板处理），Content-Type 缺省 application/javascript，可用响应 Headers 覆盖。',
     chooseFile: '选择文件',
     noFile: '尚未选择文件',
     detail: '详情',
@@ -176,6 +200,8 @@ interface ExportData {
     actions: '操作',
     count: '规则数',
     rename: '重命名',
+    moveToTop: '置顶',
+    moveToBottom: '置底',
     cancel: '取消',
     confirm: '确定',
     groupOn: '启用分组',
@@ -279,7 +305,7 @@ The TypeScript definition of the import format, to hand to the AI as a type cons
 \`\`\`ts
 type RuleFilterType = 'normal' | 'regex';
 type RequestMethod = 'ALL' | 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-type ResponseType = 'json' | 'text' | 'file';
+type ResponseType = 'json' | 'text' | 'file' | 'js' | 'html' | 'css';
 type OverrideMode = 'full' | 'incremental';
 
 interface Rule {
@@ -291,7 +317,8 @@ interface Rule {
   limitMethod?: RequestMethod;        // default 'ALL'
   responseType?: ResponseType;        // default 'json'
   overrideMode?: OverrideMode;        // default 'full'; incremental applies to JSON only
-  overrideTxt?: string;               // overridden response body (stringified JSON for json)
+  overrideTxt?: string;               // overridden response body: content string for json/text, script/static content for js/html/css (returned literally)
+  overridePayload?: string;           // overridden request body (non-GET requests), Mock.js templates supported
   responseHeaders?: Record<string, string>; // headers to append or override
   responseFileName?: string;          // file name when responseType is 'file'
   responseFileType?: string;          // e.g. 'application/json'
@@ -330,7 +357,18 @@ Response bodies (json / text) fully support Mock.js syntax; each intercepted res
 \`\`\`
 - All Mock.js placeholders work: \`@cname\`, \`@email\`, \`@integer(18,60)\`, \`@date\`, \`@image\`, etc. Syntax follows the official Mock.js docs.
 - Data template rules are supported: \`"list|1-5"\` (random count), \`"id|+1"\` (auto increment), \`"price|10-99.2"\` (ranged float), etc.
-- Content without placeholders or template keys is returned as-is; \`window.Mock\` is available in expert-mode response functions.
+- Content without placeholders or template keys is returned as-is; the request-body override (overridePayload) supports the same template syntax.
+- The bundled Mock.js is exposed as \`window.Mock\` on the page: rule content (response / request body) and expert functions can call \`Mock.mock(...)\`, \`Mock.Random.xxx()\`, etc.
+
+## JS / HTML / CSS response types
+When responseType is 'js' / 'html' / 'css', overrideTxt holds the corresponding content returned as-is on match (useful for intercepting .js/.html/.css static requests and replacing the content):
+\`\`\`js
+// responseType 'js': replace a script loaded by the page
+console.log('mocked script loaded');
+window.__MOCK_FLAG__ = true;
+\`\`\`
+- Content is not processed as a Mock template; it is returned literally. For dynamic data use responseType 'json'/'text' or expert mode.
+- Default Content-Type: js → application/javascript, html → text/html, css → text/css; override with responseHeaders.
 
 ## Notes
 - Import merges by name: a group with the same name is fully replaced, groups with new names are appended; other groups are untouched.
@@ -356,6 +394,8 @@ Response bodies (json / text) fully support Mock.js syntax; each intercepted res
     languageDescription: 'Choose the interface language',
     theme: 'Theme',
     themeDescription: 'Choose a light or dark theme',
+    autoSave: 'Auto save',
+    autoSaveDescription: 'Apply edits immediately without confirmation',
     enabled: 'Enabled',
     disabled: 'Disabled',
     groups: 'Rule groups',
@@ -367,11 +407,25 @@ Response bodies (json / text) fully support Mock.js syntax; each intercepted res
     confirmBatchDelete: 'Delete selected rule groups?',
     groupName: 'Group name',
     ruleName: 'Rule name',
+    save: 'Save',
+    unsavedHint: 'You have unsaved changes',
+    batchEdit: 'Batch edit',
+    batchEditHint: 'One param per line, in key=value format; confirmed changes are written back to the match URL',
+    addParam: 'Add param',
+    paramRegexHint: 'Query params table is unavailable in regex mode; write the query directly in the match URL',
+    tabBody: 'Body',
+    tabHeaders: 'Headers',
     match: 'Match URL',
     filter: 'Match type',
     method: 'Method',
     response: 'Response',
     headers: 'Response headers',
+    requestPayload: 'Request payload',
+    matchBody: 'Body match',
+    matchBodyHint:
+      'Distinguishes requests to the same URL by their body, using the match mode above (contains / regex). Leave empty to skip.',
+    payloadHint:
+      'Replaces the request body when a non-GET request is sent; leave empty to keep it untouched. Mock.js templates (e.g. @cname, @integer(1,100)) are supported.',
     normal: 'Contains',
     regex: 'Regex',
     all: 'All',
@@ -397,9 +451,7 @@ Response bodies (json / text) fully support Mock.js syntax; each intercepted res
     importSuccess: 'Imported',
     invalidFile: 'Invalid file',
     responseType: 'Response type',
-    text: 'Text',
-    json: 'JSON',
-    file: 'File',
+    jsHint: 'Returns the JavaScript script content as-is (no Mock template processing); the default Content-Type is application/javascript and can be overridden via response headers.',
     chooseFile: 'Choose file',
     noFile: 'No file selected',
     detail: 'Details',
@@ -408,6 +460,8 @@ Response bodies (json / text) fully support Mock.js syntax; each intercepted res
     actions: 'Actions',
     count: 'Rules',
     rename: 'Rename',
+    moveToTop: 'Move to top',
+    moveToBottom: 'Move to bottom',
     cancel: 'Cancel',
     confirm: 'Confirm',
     groupOn: 'Group enabled',

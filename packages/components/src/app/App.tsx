@@ -1,6 +1,6 @@
 import type { AppSettings } from '@api-override/core/types';
 import { THEME, VIEW } from '@api-override/core/constants';
-import { MoonIcon, PanelLeftIcon, SettingsIcon, SunIcon } from 'lucide-react';
+import { MoonIcon, PanelLeftIcon, SettingsIcon, SunIcon, UploadIcon } from 'lucide-react';
 import * as React from 'react';
 import { toast } from 'sonner';
 import '../styles/index.css';
@@ -13,7 +13,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Toaster } from '@/components/ui/sonner';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
-import { PreferencesPage, RulesPage, UsagePage } from '@/pages/Pages';
+import { PreferencesPage, QuickImportDialog, RulesPage, UsagePage } from '@/pages/Pages';
 import useAppState, { loadInitialSettings } from './useAppState';
 
 export { defaultSettings, normalizeGroups } from '@api-override/core/model';
@@ -39,7 +39,7 @@ function LanguageSwitch({ language, setLanguage, t }) {
     <Select value={language} onValueChange={setLanguage}>
       <SelectTrigger
         size="sm"
-        className="w-28 border-transparent bg-transparent shadow-none text-muted-foreground hover:bg-accent hover:text-foreground"
+        className="border-transparent bg-transparent shadow-none text-muted-foreground hover:bg-accent hover:text-foreground"
         aria-label={t.language}
       >
         <SelectValue />
@@ -66,10 +66,32 @@ function ThemeToggle({ theme, setTheme, t }) {
   );
 }
 
-function HeaderActions({ state }) {
+function HeaderActions({ state, showQuickImport = false }) {
   const { t, globalOn, setGlobalOn, language, setLanguage, theme, setTheme } = state;
+  const [importOpen, setImportOpen] = React.useState(false);
   return (
     <div className="flex items-center gap-2.5">
+      {showQuickImport && (
+        <>
+          {/* 面板（Side Panel / Popup）没有侧栏入口，顶栏直接提供快速导入 */}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setImportOpen(true)}
+            title={t.usageImportTitle}
+            aria-label={t.usageImportTitle}
+          >
+            <UploadIcon />
+          </Button>
+          <QuickImportDialog
+            t={t}
+            onImportJson={state.importGroupsText}
+            open={importOpen}
+            onOpenChange={setImportOpen}
+            onImported={() => toast(t.importSuccess)}
+          />
+        </>
+      )}
       <GlobalSwitch on={globalOn} onCheckedChange={() => setGlobalOn((value) => !value)} t={t} />
       <LanguageSwitch language={language} setLanguage={setLanguage} t={t} />
       <ThemeToggle theme={theme} setTheme={setTheme} t={t} />
@@ -102,10 +124,12 @@ function RulesSlot({ state }) {
       detailRule={state.detailRule}
       t={state.t}
       theme={state.theme}
+      autoSave={state.autoSave}
       intercepted={state.intercepted}
       onSelectGroup={state.selectGroup}
       onAddGroup={state.addGroup}
       onRenameGroup={state.renameGroup}
+      onReorderGroups={state.reorderGroups}
       onToggleGroup={state.toggleGroup}
       onDeleteGroup={state.removeGroup}
       onBatchEnable={state.setGroupsEnabled}
@@ -167,7 +191,7 @@ function AppInner({ initialSettings }: { initialSettings: AppSettings }) {
 
   const content =
     view === VIEW.SETTINGS || view === VIEW.ADMIN ? (
-      <PreferencesPage t={t} theme={state.theme} setTheme={state.setTheme} />
+      <PreferencesPage t={t} theme={state.theme} setTheme={state.setTheme} autoSave={state.autoSave} setAutoSave={state.setAutoSave} />
     ) : view === VIEW.USAGE ? (
       <UsagePage
         t={t}
@@ -188,7 +212,7 @@ function AppInner({ initialSettings }: { initialSettings: AppSettings }) {
             <div className="truncate text-sm font-semibold">{t.groupManagement}</div>
             <div className="truncate text-xs text-muted-foreground">{t.rulesDescription}</div>
           </div>
-          <HeaderActions state={state} />
+          <HeaderActions state={state} showQuickImport />
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto">{content}</div>
         <Toaster theme={state.theme as 'dark' | 'light'} position="bottom-center" />
@@ -249,7 +273,7 @@ function AppInner({ initialSettings }: { initialSettings: AppSettings }) {
               </div>
             </div>
             <div className="flex items-center gap-2.5">
-              <HeaderActions state={state} />
+              <HeaderActions state={state} showQuickImport={sidePanel} />
               <Button
                 variant="ghost"
                 size="icon-sm"
