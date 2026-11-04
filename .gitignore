@@ -19,6 +19,6 @@ docs-all
 # 图标渲染与本地临时目录
 .tmp-icons/
 
-
+docs
 # 图标设计参考文件
 test.svg
