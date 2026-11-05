@@ -22,7 +22,6 @@ English · [简体中文](./README.md)
 - 🎯 **Response overrides** — JSON full / incremental, Text / JavaScript / HTML / CSS / file responses, headers & status codes
 - 📤 **Request override** — replace the request body of non-GET requests per rule
 - 🧪 **Mock.js** — `@cname`, `@integer(1, 100)` out of the box; the bundled Mock is exposed as `window.Mock`
-- 🧠 **Expert mode** — generate headers / payloads / responses with JS functions
 - 📦 **Import / export** — group JSON import & export, quick import from the panel header
 - 🌗 **Themes** — light / dark, Chinese & English
 
