@@ -237,7 +237,7 @@ export function RuleEditor({ rule, t, theme = 'light', intercepted = [], onChang
                       value={draft.responseType || RESPONSE_TYPE.JSON}
                       onValueChange={(value) => patch({ responseType: value, ...(value === RESPONSE_TYPE.FILE || value === RESPONSE_TYPE.JS ? { overrideMode: OVERRIDE_MODE.FULL } : {}) })}
                     >
-                      <SelectTrigger className="rounded-none border-0 gap-1 px-2 shadow-none [&>[data-slot=select-value]]:gap-1" title={t.responseType}>
+                      <SelectTrigger className="h-10 rounded-none border-0 gap-1 px-2 shadow-none [&>[data-slot=select-value]]:gap-1" title={t.responseType}>
                         <InfoIcon className="size-3 text-muted-foreground" />
                         <SelectValue />
                       </SelectTrigger>
@@ -256,7 +256,7 @@ export function RuleEditor({ rule, t, theme = 'light', intercepted = [], onChang
                       onValueChange={(value) => patch({ overrideMode: value })}
                       disabled={draft.responseType === RESPONSE_TYPE.FILE || draft.responseType === RESPONSE_TYPE.JS}
                     >
-                      <SelectTrigger className="rounded-none border-0 gap-1 px-2 shadow-none [&>[data-slot=select-value]]:gap-1" title={`${t.incremental}：${t.incrementalHint}`}>
+                      <SelectTrigger className="h-10 rounded-none border-0 gap-1 px-2 shadow-none [&>[data-slot=select-value]]:gap-1" title={`${t.incremental}：${t.incrementalHint}`}>
                         <InfoIcon className="size-3 text-muted-foreground" />
                         <SelectValue />
                       </SelectTrigger>

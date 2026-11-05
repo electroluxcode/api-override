@@ -24,7 +24,7 @@
   --secondary: oklch(0.967 0.001 286.375);
   --secondary-foreground: oklch(0.21 0.006 285.885);
   --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
+  --muted-foreground: oklch(0.45 0.016 285.938);
   --accent: oklch(0.967 0.001 286.375);
   --accent-foreground: oklch(0.21 0.006 285.885);
   --destructive: oklch(0.577 0.245 27.325);
@@ -45,7 +45,7 @@
   --secondary: oklch(0.274 0.006 286.033);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.274 0.006 286.033);
-  --muted-foreground: oklch(0.705 0.015 286.067);
+  --muted-foreground: oklch(0.75 0.015 286.067);
   --accent: oklch(0.274 0.006 286.033);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
@@ -55,6 +55,9 @@
 }
 
 @theme inline {
+  /* 界面字体：优先系统级可变字体（Segoe UI Variable / SF Pro / MiSans），中文跟随系统（苹方 / 雅黑） */
+  --font-sans:
+    'Segoe UI Variable Text', 'SF Pro Text', Inter, 'MiSans', 'PingFang SC', 'HarmonyOS Sans SC', 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -97,6 +100,9 @@
     overflow-y: hidden;
     background: var(--background);
     color: var(--foreground);
+    /* 全局字体：系统级可变字体优先（见 @theme --font-sans），字重 450 比常规正文略重一档 */
+    font-family: var(--font-sans);
+    font-weight: 450;
   }
   * {
     @apply border-border outline-ring/50;

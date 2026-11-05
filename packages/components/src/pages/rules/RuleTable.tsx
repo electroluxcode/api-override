@@ -6,6 +6,7 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator,
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { METHOD_TRIGGER_COLORS, METHOD_TRIGGER_FALLBACK } from './constants';
 import { cn } from '@/lib/utils';
 import { PlusIcon } from 'lucide-react';
 import { useState } from 'react';
@@ -56,7 +57,9 @@ export function RuleTable({ rules, t, onOpen, onToggle, onDelete, onRename, onDu
                     {rule.match || '—'}
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline">{rule.limitMethod || 'ALL'}</Badge>
+                    <Badge variant="outline" className={cn('border-transparent', METHOD_TRIGGER_COLORS[rule.limitMethod || 'ALL'] || METHOD_TRIGGER_FALLBACK)}>
+                      {rule.limitMethod || 'ALL'}
+                    </Badge>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1.5">
