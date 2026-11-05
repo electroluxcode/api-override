@@ -11,6 +11,9 @@ import {
 } from '@api-override/core/model';
 import type { AppSettings, ProxyMapping, RuleGroup } from '@api-override/core/types';
 import { STORAGE_KEY, THEME, VIEW } from '@api-override/core/constants';
+import { readMatchLog, subscribeMatchLog } from '@api-override/core/matchLogStore';
+import type { MatchLogEntry } from '@api-override/core/matchLogStore';
+import { RUNTIME_MSG_TYPE, sendRuntimeEvent } from '@api-override/core/messaging';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useConfirm } from '@/components/ui/confirm';
 import { I18N } from '../shared/i18n';
@@ -33,10 +36,34 @@ const buildSyncPayload = ({ enabled, mode, mappings, groups }: { enabled: boolea
 });
 const serializeSyncPayload = (payload: unknown): string => JSON.stringify(payload);
 
+// 匹配日志条目类型与存储平面共用（core/matchLogStore），面板只读、清空走事件交 SW 执行
+export type { MatchLogEntry } from '@api-override/core/matchLogStore';
+
+export interface PageStatus {
+  time: number;
+  switchOn: boolean;
+  ruleCount: number;
+  enabledCount: number;
+  configSource?: 'service' | 'storage';
+}
+
 export function loadInitialSettings(done: (settings: AppSettings) => void): void {
   const fallback = { ...defaultSettings };
   const local = readLocalSettings();
-  done({ ...fallback, ...local, groups: normalizeGroups({ ...fallback, ...local }) });
+  const finish = (stored: Record<string, unknown>) => {
+    // chrome.storage 优先于 localStorage：content.js / SW 读的都是 storage，
+    // 面板若只按 localStorage 初始化，挂载回写时会把 storage 里的最新规则回退成旧值
+    const merged = { ...fallback, ...local, ...stored } as AppSettings;
+    done({ ...merged, groups: normalizeGroups(merged) } as AppSettings);
+  };
+  const storage = (globalThis as any).chrome?.storage?.local;
+  if (storage?.get) {
+    try {
+      storage.get(null, (result: Record<string, unknown> = {}) => finish(result || {}));
+      return;
+    } catch {}
+  }
+  finish({});
 }
 
 export default function useAppState(initialSettings: AppSettings) {
@@ -77,6 +104,17 @@ export default function useAppState(initialSettings: AppSettings) {
   };
   const [sidebarCollapsed, setSidebarCollapsed] = useState(showSidebar ? false : sidePanel || Boolean(initialSettings.ui_sidebar_collapsed));
   const [intercepted, _setIntercepted] = useState({});
+  // 匹配日志（存储平面，面板只读）：页面每次判定经 SW 攒批落盘到 session 环形缓冲（100 条），
+  // 面板未打开时也不丢，挂载回看历史、subscribeMatchLog 实时增量
+  const [matchLog, setMatchLog] = useState<MatchLogEntry[]>([]);
+  // 清空走事件平面（sendRuntimeEvent → SW 清缓冲），本上下文不直写 session 存储；
+  // 本地先行置空，SW 落盘结果经 subscribeMatchLog 回流确认
+  const clearMatchLog = () => {
+    setMatchLog([]);
+    sendRuntimeEvent({ type: RUNTIME_MSG_TYPE, to: 'background', matchLogClear: true });
+  };
+  // 页面脚本运行状态（总开关/规则数/配置来源），用于解释"面板有规则但页面未命中"
+  const [pageStatus, setPageStatus] = useState<PageStatus | null>(null);
   const [notice, setNotice] = useState('');
   const [view, setView] = useState(routeView);
   const t = I18N[language] || I18N['zh-CN'];
@@ -138,7 +176,11 @@ export default function useAppState(initialSettings: AppSettings) {
     document.documentElement.dataset.theme = theme;
     saveSetting('ui_theme', theme);
   }, [theme]);
-  useEffect(() => saveSetting('ui_language', language), [language]);
+  // 同步 <html lang>：与界面语言保持一致（无障碍/拼写检查依赖它）
+  useEffect(() => {
+    document.documentElement.lang = language;
+    saveSetting('ui_language', language);
+  }, [language]);
   useEffect(() => saveSetting('ui_autosave', autoSave), [autoSave]);
   useEffect(() => saveSetting('ui_sidebar_collapsed', sidebarCollapsed), [sidebarCollapsed]);
   useEffect(() => saveSetting('customFunction', customFunction), [customFunction]);
@@ -206,6 +248,45 @@ export default function useAppState(initialSettings: AppSettings) {
     const onPopState = () => setView(routeView());
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+  // 多实例同步：侧栏 / options 页同时打开时各自持有内存状态，一处改设置另一处感知不到，
+  // 会出现"自动保存明明关了却仍在直写"的分叉。storage.onChanged 即时同步轻量设置；
+  // groups 不同步——编辑中的草稿不该被另一实例覆盖。
+  useEffect(() => {
+    const storage = (globalThis as any).chrome?.storage?.onChanged;
+    if (!storage?.addListener) return;
+    const listener = (changes: Record<string, { newValue: unknown }>, area: string) => {
+      if (area !== 'local') return;
+      if ('ui_autosave' in changes) setAutoSave(Boolean(changes.ui_autosave.newValue));
+      if ('ui_language' in changes) setLanguage(String(changes.ui_language.newValue));
+      if ('ui_theme' in changes) setTheme(String(changes.ui_theme.newValue));
+      if ('ajaxInterceptor_switchOn' in changes) setGlobalOn(Boolean(changes.ajaxInterceptor_switchOn.newValue));
+    };
+    storage.addListener(listener);
+    return () => storage.removeListener(listener);
+  }, []);
+  // 页面脚本上报的运行状态（content.js 以 to:'iframe' 转发到所有扩展上下文）；匹配日志走存储平面，见下
+  useEffect(() => {
+    const runtime = (globalThis as any).chrome?.runtime;
+    if (!runtime?.onMessage) return;
+    const listener = (msg: any) => {
+      if (msg?.type !== 'ajaxInterceptor' || msg.to !== 'iframe' || msg.logType !== 'status') return;
+      const source = msg.configSource === 'service' ? 'service' : msg.configSource === 'storage' ? 'storage' : undefined;
+      // main.js 的常规状态上报不带来源，保留最近一次 content.js 上报的配置来源
+      setPageStatus((prev) => ({ time: Date.now(), switchOn: Boolean(msg.switchOn), ruleCount: Number(msg.ruleCount) || 0, enabledCount: Number(msg.enabledCount) || 0, configSource: source ?? prev?.configSource }));
+    };
+    runtime.onMessage.addListener(listener);
+    // 挂载时主动要一次页面脚本状态（经 SW 转发到当前活动标签页）
+    try {
+      runtime.sendMessage({ type: 'ajaxInterceptor', to: 'background', key: 'ajaxInterceptor_requestStatus', value: true }, () => void runtime.lastError);
+    } catch {}
+    return () => runtime.onMessage.removeListener(listener);
+  }, []);
+  // 匹配日志（存储平面，只读）：挂载时读取 SW 落盘的历史（面板没开时的判定也能回看），
+  // 之后经 subscribeMatchLog（storage.onChanged）实时同步；清空不发直写，走事件交 SW 清缓冲
+  useEffect(() => subscribeMatchLog(setMatchLog), []);
+  useEffect(() => {
+    readMatchLog((entries) => setMatchLog(entries));
   }, []);
 
   const updateGroup = (id, patch) => setGroups((items) => items.map((group) => (group.id === id ? { ...group, ...patch } : group)));
@@ -371,6 +452,9 @@ export default function useAppState(initialSettings: AppSettings) {
     sidebarCollapsed,
     setSidebarCollapsed,
     intercepted,
+    matchLog,
+    clearMatchLog,
+    pageStatus,
     notice,
     view,
     t,

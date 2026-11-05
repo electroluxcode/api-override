@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 8887 --strictPort --open /index.html",
-    "build": "vite build",
-    "build:watch": "vite build --watch",
+    "build": "vite build && node scripts/build-extension-scripts.mjs",
+    "build:watch": "vite build --watch && node scripts/build-extension-scripts.mjs",
     "test": "pnpm build"
   },
   "dependencies": {
@@ -17,6 +17,7 @@
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-react": "^4.3.4",
+    "esbuild": "^0.28.2",
     "tailwindcss": "^4.3.3",
     "vite": "^6.0.0",
     "vite-plugin-css-injected-by-js": "^3.5.2"

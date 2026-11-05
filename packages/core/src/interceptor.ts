@@ -35,12 +35,31 @@ export const matchPattern = (match: string, url: string): boolean => {
   }
 };
 
+const isPlainJsonObject = (value: unknown): boolean => value !== null && typeof value === 'object' && !Array.isArray(value);
+const tryParseJson = (text: string): unknown => {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+};
+// 规则 JSON 是否为请求体 JSON 的「子集」：对象递归包含，数组/原始值要求完全相等（忽略键序与空白）
+const jsonSubset = (a: unknown, b: unknown): boolean => {
+  if (isPlainJsonObject(a) && isPlainJsonObject(b)) {
+    return Object.keys(a as Record<string, unknown>).every(
+      (key) => key in (b as Record<string, unknown>) && jsonSubset((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key])
+    );
+  }
+  return JSON.stringify(a) === JSON.stringify(b);
+};
+
 /**
  * 请求体匹配：规则配置了 matchBody 时才校验，语义与 match 一致（normal=包含/通配，regex=正则）。
+ * normal 且两边都能解析为 JSON 时优先按结构比较（格式化/紧凑写法、键序不同均可），再退回文本包含。
  * bodyText 由调用方先用 stringifyRequestBody 转成字符串。
  */
 export const matchBodyPattern = (rule: RuleLike, bodyText: string): boolean => {
-  const pattern = String(rule.matchBody || '');
+  const pattern = String(rule.matchBody || '').trim();
   if (!pattern) return true;
   if (rule.filterType === FILTER_TYPE.REGEX) {
     try {
@@ -49,7 +68,13 @@ export const matchBodyPattern = (rule: RuleLike, bodyText: string): boolean => {
       return false;
     }
   }
-  return matchPattern(pattern, bodyText);
+  if (pattern.includes('*')) return matchPattern(pattern, bodyText);
+  const ruleJson = tryParseJson(pattern);
+  const bodyJson = typeof bodyText === 'string' ? tryParseJson(bodyText) : undefined;
+  if (ruleJson !== undefined && bodyJson !== undefined) {
+    return jsonSubset(ruleJson, bodyJson) || JSON.stringify(bodyJson).indexOf(JSON.stringify(ruleJson)) > -1;
+  }
+  return typeof bodyText === 'string' && bodyText.indexOf(pattern) > -1;
 };
 
 /** 请求体统一转字符串：字符串/URLSearchParams 原样，FormData 拼成 k=v，二进制解码，对象 JSON 序列化。 */
@@ -80,7 +105,16 @@ export const matchesRule = (rule: RuleLike | null | undefined, url: string, meth
   return typeof rule.match === 'string' && matchPattern(rule.match, url) && matchBodyPattern(rule, bodyText);
 };
 
+/** 规则是否配置了 Body 匹配（空串视为未配置，只作兜底）。 */
+export const hasBodyCondition = (rule: RuleLike): boolean => typeof rule?.matchBody === 'string' && rule.matchBody.trim() !== '';
+
+/**
+ * 遍历规则找第一条命中的：用请求 URL（与 method/bodyText）逐条判断，
+ * 配置了 Body 匹配且命中的规则优先，未配置 Body 匹配的规则只作兜底——
+ * 避免前面的兜底规则挡住后面的按请求体区分的精确规则。
+ */
 export const findMatchedRule = (rules: RuleLike[] = [], url: string, method = 'GET', bodyText = ''): RuleLike | undefined =>
+  rules.find((rule) => hasBodyCondition(rule) && matchesRule(rule, url, method, bodyText)) ??
   rules.find((rule) => matchesRule(rule, url, method, bodyText));
 
 export const decodeDataUrl = (dataUrl: unknown): Uint8Array => {

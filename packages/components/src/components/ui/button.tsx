@@ -1,6 +1,6 @@
 import { Slot } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
-import type * as React from 'react';
+import * as React from 'react';
 
 import { cn } from '@/lib/utils';
 
@@ -32,16 +32,15 @@ const buttonVariants = cva(
   }
 );
 
-function Button({
-  className,
-  variant,
-  size,
-  asChild = false,
-  ...props
-}: React.ComponentProps<'button'> & VariantProps<typeof buttonVariants> & { asChild?: boolean }) {
+// React 18 下 ref 必须显式 forward：Radix asChild（如 DropdownMenuTrigger）
+// 依赖拿到内部 ref 来完成 PopperAnchor / 焦点管理等逻辑，丢 ref 会导致菜单无法定位
+const Button = React.forwardRef<
+  HTMLButtonElement,
+  React.ComponentPropsWithRef<'button'> & VariantProps<typeof buttonVariants> & { asChild?: boolean }
+>(function Button({ className, variant, size, asChild = false, ...props }, ref) {
   const Comp = asChild ? Slot : 'button';
 
-  return <Comp data-slot="button" className={cn(buttonVariants({ variant, size, className }))} {...props} />;
-}
+  return <Comp data-slot="button" ref={ref} className={cn(buttonVariants({ variant, size, className }))} {...props} />;
+});
 
 export { Button, buttonVariants };

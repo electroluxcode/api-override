@@ -17,6 +17,7 @@
     {
       "resources": [
         "pageScripts/main.js",
+        "pageScripts/vendor/mock.js",
         "bundle.js"
       ],
       "matches": ["<all_urls>"]

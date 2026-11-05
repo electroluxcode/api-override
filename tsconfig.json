@@ -20,6 +20,5 @@
       "@/*": ["./packages/components/src/*"]
     }
   },
-  "include": ["apps/*/src", "packages/*/src"],
-  "exclude": ["packages/core/src/runtime.ts"]
+  "include": ["apps/*/src", "packages/*/src"]
 }

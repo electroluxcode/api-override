@@ -5,16 +5,14 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import JsonEditor from '@/components/JsonEditor';
-import { ArrowLeftIcon, CheckIcon, InfoIcon, PlusIcon, Trash2Icon, XIcon } from 'lucide-react';
-import { useState } from 'react';
+import { ArrowLeftIcon, CheckIcon, InfoIcon, ListPlusIcon, PlusIcon, Trash2Icon, XIcon } from 'lucide-react';
+import { useRef, useState } from 'react';
 import { METHOD_TRIGGER_COLORS, METHOD_TRIGGER_FALLBACK, RULE_REQ_MIN_HEIGHT, RULE_RESP_MAX_HEIGHT } from './constants';
 import { useParamRows, useReqHeight, useResponseFile, useRuleDraft } from './useRuleEditor';
-
-// 分页按钮样式：激活项为圆角高亮块（对齐接口调试工具的分页样式）
-const tabCls = (active) => cn('rounded-md px-3 py-1.5 text-sm transition-colors', active ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground hover:text-foreground');
 
 export function RuleEditor({ rule, t, theme = 'light', intercepted = [], onChange, onDelete, onBack, autoSave = false }) {
   const { draft, patch, dirty, save, reset, headersValue, setHeadersValue } = useRuleDraft(rule, autoSave, onChange);
@@ -38,8 +36,27 @@ export function RuleEditor({ rule, t, theme = 'light', intercepted = [], onChang
     if (name) patch({ label: name });
     setRenaming(false);
   };
+  // 返回不保存：有未保存修改时不弹窗，底部按钮组切换为"退出"形态并抖动提示（放弃/保存并返回），直接放行无修改的返回
+  const [shakeCount, setShakeCount] = useState(0);
+  const [exiting, setExiting] = useState(false);
+  const shakeTimer = useRef<number | undefined>(undefined);
   const handleBack = () => {
-    if (dirty) save();
+    if (!dirty) {
+      onBack();
+      return;
+    }
+    setExiting(true);
+    // 重设 key 重播抖动动画（快速连点也只重放，不叠加）
+    setShakeCount((value) => value + 1);
+    window.clearTimeout(shakeTimer.current);
+    shakeTimer.current = window.setTimeout(() => setShakeCount(0), 600);
+  };
+  const discardAndBack = () => {
+    reset();
+    onBack();
+  };
+  const saveAndBack = () => {
+    save();
     onBack();
   };
   return (
@@ -89,7 +106,7 @@ export function RuleEditor({ rule, t, theme = 'light', intercepted = [], onChang
       <div className="flex min-h-0 flex-1 flex-col p-4">
         <div className="flex min-h-0 flex-1 flex-col">
           {/* 请求拦截：请求行（方法 + 匹配方式 + 匹配地址）独立成卡，下拉底色内缩圆角 */}
-          <div className="mb-3 flex shrink-0 items-center overflow-hidden rounded-lg border border-foreground/15 dark:border-foreground/20">
+          <div className="mb-3 flex shrink-0 items-center overflow-hidden rounded-lg border border-foreground/10 dark:border-foreground/15">
             {/* 请求方法在最左，底色整体铺在触发器上以区分下拉与输入框 */}
             <Select value={draft.limitMethod || 'ALL'} onValueChange={(value) => patch({ limitMethod: value })}>
               <SelectTrigger
@@ -105,7 +122,8 @@ export function RuleEditor({ rule, t, theme = 'light', intercepted = [], onChang
               <SelectContent>
                 {HTTP_METHODS.map((method) => (
                   <SelectItem key={method} value={method}>
-                    {method === 'ALL' ? t.all : method}
+                    {/* 方法名为通用名，不做国际化（与 GET / POST 一致） */}
+                    {method}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -126,102 +144,91 @@ export function RuleEditor({ rule, t, theme = 'light', intercepted = [], onChang
             </Select>
             <Input className="min-w-48 flex-1 rounded-none border-0 font-mono shadow-none" value={draft.match} onChange={(event) => patch({ match: event.target.value })} placeholder="*/api/user/list" />
           </div>
-          <div
+          <Tabs
             ref={cardRef}
-            className="flex min-h-0 shrink-0 flex-col overflow-hidden rounded-lg border border-foreground/15 dark:border-foreground/20"
+            value={reqTab}
+            onValueChange={setReqTab}
+            className="flex min-h-0 shrink-0 flex-col gap-0 overflow-hidden rounded-lg border border-foreground/10 dark:border-foreground/15"
             style={reqHeightMode === 'fixed' ? { height: reqHeight } : { minHeight: RULE_REQ_MIN_HEIGHT, maxHeight: reqHeight }}
           >
-            <div className="flex items-center gap-1 border-b px-2 py-1.5">
-              <button type="button" onClick={() => setReqTab('params')} className={tabCls(reqTab === 'params')}>
+            <TabsList variant="line">
+              <TabsTrigger variant="line" value="params">
                 {/* 页签名为通用名，不做国际化 */}
                 Param
-              </button>
-              <button type="button" onClick={() => setReqTab('payload')} className={tabCls(reqTab === 'payload')}>
-                {t.tabBody}
-              </button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-3">
-              {reqTab === 'params' ? (
-                <div className="grid content-start gap-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs text-muted-foreground">Query</Label>
-                    {draft.filterType !== FILTER_TYPE.REGEX && (
-                      <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={enterBatch}>
-                        {t.batchEdit}
-                      </Button>
-                    )}
-                  </div>
-                  {draft.filterType === FILTER_TYPE.REGEX ? (
-                    <p className="text-xs text-muted-foreground">{t.paramRegexHint}</p>
-                  ) : (
-                    <>
-                      <div className="grid grid-cols-[1fr_1fr_auto] items-center gap-2 px-1 text-xs text-muted-foreground">
-                        <span>Key</span>
-                        <span>Value</span>
-                        <span />
-                      </div>
-                      {displayParamRows.map((row, index) => (
-                        <div key={index} className="grid grid-cols-[1fr_1fr_auto] items-center gap-2">
-                          <Input className="h-8 font-mono text-xs" value={row.key} onChange={(event) => updateParam(index, 'key', event.target.value)} placeholder="key" />
-                          <Input className="h-8 font-mono text-xs" value={row.value} onChange={(event) => updateParam(index, 'value', event.target.value)} placeholder="value" />
-                          <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" onClick={() => removeParam(index)}>
-                            <XIcon />
-                          </Button>
-                        </div>
-                      ))}
-                      <div>
-                        <Button type="button" variant="ghost" size="sm" className="text-xs text-muted-foreground" onClick={addParam}>
-                          <PlusIcon />
-                          {t.addParam}
-                        </Button>
-                      </div>
-                    </>
+              </TabsTrigger>
+              <TabsTrigger variant="line" value="payload">{t.tabBody}</TabsTrigger>
+            </TabsList>
+            <TabsContent value="params" className="min-h-0 flex-1 overflow-y-auto p-3">
+              <div className="grid content-start gap-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs text-muted-foreground">Query</Label>
+                  {draft.filterType !== FILTER_TYPE.REGEX && (
+                    <Button type="button" variant="ghost" size="icon-sm" className="size-7" onClick={enterBatch} title={t.batchEdit} aria-label={t.batchEdit}>
+                      <ListPlusIcon />
+                    </Button>
                   )}
                 </div>
-              ) : (
-                <div className="grid content-start gap-1.5">
-                  {/* Body 匹配：同一地址的不同请求按请求体内容区分（如不同的 plan_time_type），留空不校验 */}
-                  <Label className="text-xs text-muted-foreground">{t.matchBody}</Label>
-                  <Input
-                    className="h-8 font-mono text-xs"
-                    value={draft.matchBody || ''}
-                    onChange={(event) => patch({ matchBody: event.target.value })}
-                    placeholder={'"plan_time_type": "YEAR"'}
-                  />
-                  <small className="text-xs text-muted-foreground">{t.matchBodyHint}</small>
-                  <Label className="mt-1 text-xs text-muted-foreground">{t.requestPayload}</Label>
-                  {/* 与响应体同一编辑器：输入 @ 提示 Mock.js 占位符，支持裸写占位符的校验/格式化 */}
-                  <JsonEditor
-                    value={draft.overridePayload || ''}
-                    onChange={(next) => patch({ overridePayload: next })}
-                    mode="body"
-                    theme={theme}
-                    height={160}
-                    placeholder={'{\n  "page": "@integer(1,10)"\n}'}
-                    t={t}
-                  />
-                  <small className="text-xs text-muted-foreground">{t.payloadHint}</small>
-                </div>
-              )}
-            </div>
-          </div>
+                {draft.filterType === FILTER_TYPE.REGEX ? (
+                  <p className="text-xs text-muted-foreground">{t.paramRegexHint}</p>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-[1fr_1fr_auto] items-center gap-2 px-1 text-xs text-muted-foreground">
+                      <span>Key</span>
+                      <span>Value</span>
+                      <span />
+                    </div>
+                    {displayParamRows.map((row, index) => (
+                      <div key={index} className="grid grid-cols-[1fr_1fr_auto] items-center gap-2">
+                        <Input className="h-8 font-mono text-xs" value={row.key} onChange={(event) => updateParam(index, 'key', event.target.value)} placeholder="key" />
+                        <Input className="h-8 font-mono text-xs" value={row.value} onChange={(event) => updateParam(index, 'value', event.target.value)} placeholder="value" />
+                        <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" onClick={() => removeParam(index)}>
+                          <XIcon />
+                        </Button>
+                      </div>
+                    ))}
+                    <div>
+                      <Button type="button" variant="ghost" size="sm" className="text-xs text-muted-foreground" onClick={addParam}>
+                        <PlusIcon />
+                        {t.addParam}
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </TabsContent>
+            <TabsContent value="payload" className="min-h-0 flex-1 overflow-y-auto p-3">
+              <div className="grid content-start gap-1.5">
+                {/* Body 匹配：同一地址的不同请求按请求体内容区分（如不同的 plan_time_type），留空不校验 */}
+                <Label className="text-xs text-muted-foreground">{t.matchBody}</Label>
+                {/* 内容是包含/通配/正则匹配串，不一定是完整 JSON，关闭 JSON 校验 */}
+                <JsonEditor
+                  value={draft.matchBody || ''}
+                  onChange={(next) => patch({ matchBody: next })}
+                  mode="body"
+                  theme={theme}
+                  height={120}
+                  validate={false}
+                  t={t}
+                />
+                <small className="text-xs text-muted-foreground">{t.matchBodyHint}</small>
+              </div>
+            </TabsContent>
+          </Tabs>
           {/* 分隔线：拖拽调节请求区高度，双击恢复默认 */}
           <div className="group flex h-4 shrink-0 cursor-row-resize items-center justify-center" onMouseDown={startVerticalResize} onDoubleClick={resetReqHeight}>
             <div className="h-1 w-16 rounded-full bg-muted-foreground/25 transition-colors group-hover:bg-muted-foreground/50" />
           </div>
           {/* 响应拦截：响应格式 / 增量覆盖 + Body / Headers 分页（高度随内容自适应，超出上限内部滚动） */}
-          <div
-            className="flex min-h-0 shrink-0 flex-col overflow-hidden rounded-lg border border-foreground/15 dark:border-foreground/20"
+          <Tabs
+            value={respTab}
+            onValueChange={setRespTab}
+            className="flex min-h-0 shrink-0 flex-col gap-0 overflow-hidden rounded-lg border border-foreground/10 dark:border-foreground/15"
             style={{ minHeight: RULE_REQ_MIN_HEIGHT, maxHeight: RULE_RESP_MAX_HEIGHT }}
           >
-            <div className="flex items-center gap-1 border-b px-2 py-1.5">
-              <button type="button" onClick={() => setRespTab('body')} className={tabCls(respTab === 'body')}>
-                {t.tabBody}
-              </button>
-              <button type="button" onClick={() => setRespTab('headers')} className={tabCls(respTab === 'headers')}>
-                {t.tabHeaders}
-              </button>
-            </div>
+            <TabsList variant="line">
+              <TabsTrigger variant="line" value="body">{t.tabBody}</TabsTrigger>
+              <TabsTrigger variant="line" value="headers">{t.tabHeaders}</TabsTrigger>
+            </TabsList>
             {respTab === 'body' && (
               <div className="flex items-center border-b px-2 py-2">
                 {/* 响应格式 / 增量覆盖连接为一个输入组；左侧图标 hover 查看字段说明 */}
@@ -350,20 +357,39 @@ export function RuleEditor({ rule, t, theme = 'light', intercepted = [], onChang
                 </div>
               )}
             </div>
-          </div>
+          </Tabs>
         </div>
-        {/* 有修改时底部悬浮二次确认按钮组（自动保存模式下不出现） */}
+        {/* 底部悬浮确认按钮组（自动保存模式下不出现）：编辑中=取消/保存；点过返回=退出形态（放弃/保存并返回）+抖动 */}
         {!autoSave && dirty && (
           <div className="pointer-events-none absolute inset-x-0 bottom-5 z-10 flex justify-center">
-            <div className="pointer-events-auto flex items-center gap-4 rounded-full border border-foreground/15 bg-background/85 py-2.5 pl-5 pr-2.5 shadow-xl backdrop-blur dark:border-foreground/20">
-              <span className="text-sm text-muted-foreground">{t.unsavedHint}</span>
+            <div
+              key={shakeCount}
+              className={cn(
+                'pointer-events-auto flex items-center gap-4 rounded-full border border-foreground/10 bg-background/85 py-2.5 pl-5 pr-2.5 shadow-xl backdrop-blur dark:border-foreground/15',
+                shakeCount > 0 && 'animate-shake'
+              )}
+            >
+              <span className="text-sm text-muted-foreground">{exiting ? t.backDiscardHint : t.unsavedHint}</span>
               <div className="flex items-center gap-1.5">
-                <Button type="button" variant="ghost" size="sm" className="h-9 rounded-full px-4" onClick={reset}>
-                  {t.cancel}
-                </Button>
-                <Button type="button" size="sm" className="h-9 rounded-full px-5" onClick={save}>
-                  {t.save}
-                </Button>
+                {exiting ? (
+                  <>
+                    <Button type="button" variant="ghost" size="sm" className="h-9 rounded-full px-4" onClick={discardAndBack}>
+                      {t.discardAndBack}
+                    </Button>
+                    <Button type="button" size="sm" className="h-9 rounded-full px-5" onClick={saveAndBack}>
+                      {t.saveAndBack}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button type="button" variant="ghost" size="sm" className="h-9 rounded-full px-4" onClick={reset}>
+                      {t.cancel}
+                    </Button>
+                    <Button type="button" size="sm" className="h-9 rounded-full px-5" onClick={save}>
+                      {t.save}
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           </div>

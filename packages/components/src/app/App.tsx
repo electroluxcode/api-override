@@ -1,18 +1,20 @@
 import type { AppSettings } from '@api-override/core/types';
 import { THEME, VIEW } from '@api-override/core/constants';
-import { MoonIcon, PanelLeftIcon, SettingsIcon, SunIcon, UploadIcon } from 'lucide-react';
+import { EllipsisIcon, LanguagesIcon, MoonIcon, PanelLeftIcon, ScrollTextIcon, SettingsIcon, SunIcon, UploadIcon } from 'lucide-react';
 import * as React from 'react';
 import { toast } from 'sonner';
 import '../styles/index.css';
 import Sidebar from '@/components/Sidebar';
+import { ApiMark } from '@/components/ApiMark';
 import { Button } from '@/components/ui/button';
 import { ConfirmProvider } from '@/components/ui/confirm';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Separator } from '@/components/ui/separator';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Toaster } from '@/components/ui/sonner';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
+import { MatchLogPane } from '@/pages/rules/MatchLogPane';
 import { PreferencesPage, QuickImportDialog, RulesPage, UsagePage } from '@/pages/Pages';
 import useAppState, { loadInitialSettings } from './useAppState';
 
@@ -21,10 +23,10 @@ export { defaultSettings, normalizeGroups } from '@api-override/core/model';
 const pageMeta = (view, t) => {
   if (view === VIEW.SETTINGS || view === VIEW.ADMIN) return { title: t.settings, subtitle: t.settingsDescription };
   if (view === VIEW.USAGE) return { title: t.usage, subtitle: t.usageDescription };
-  return { title: t.groupManagement, subtitle: t.rulesDescription };
+  return { title: t.groupManagement };
 };
 
-// 顶栏公共件：全局开关 / 语言切换 / 主题切换
+// 全局开关：顶栏常驻入口之一
 function GlobalSwitch({ on, onCheckedChange, t }) {
   return (
     <label className="flex items-center gap-2 text-sm text-muted-foreground" title={t.on}>
@@ -34,39 +36,10 @@ function GlobalSwitch({ on, onCheckedChange, t }) {
   );
 }
 
-function LanguageSwitch({ language, setLanguage, t }) {
-  return (
-    <Select value={language} onValueChange={setLanguage}>
-      <SelectTrigger
-        size="sm"
-        className="border-transparent bg-transparent shadow-none text-muted-foreground hover:bg-accent hover:text-foreground"
-        aria-label={t.language}
-      >
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="zh-CN">中文</SelectItem>
-        <SelectItem value="en-US">English</SelectItem>
-      </SelectContent>
-    </Select>
-  );
-}
-
-function ThemeToggle({ theme, setTheme, t }) {
-  return (
-    <Button
-      variant="ghost"
-      size="icon-sm"
-      onClick={() => setTheme((value) => (value === THEME.DARK ? THEME.LIGHT : THEME.DARK))}
-      title={theme === THEME.DARK ? t.themeLight : t.themeDark}
-      aria-label={t.theme}
-    >
-      {theme === THEME.DARK ? <SunIcon /> : <MoonIcon />}
-    </Button>
-  );
-}
-
-function HeaderActions({ state, showQuickImport = false }) {
+// 顶栏只保留四个入口：上传（有导入入口的形态）/ 全局开关 / 语言切换 / 更多菜单。
+// 低频操作（匹配日志、主题、设置）收纳进"更多"菜单，窄宽度下不再互相挤压；
+// 挂载在顶栏的菜单让 Side Panel / Popup 等窄形态也能触达全部功能。
+function HeaderActions({ state, showQuickImport = false, onOpenLog }) {
   const { t, globalOn, setGlobalOn, language, setLanguage, theme, setTheme } = state;
   const [importOpen, setImportOpen] = React.useState(false);
   return (
@@ -93,8 +66,43 @@ function HeaderActions({ state, showQuickImport = false }) {
         </>
       )}
       <GlobalSwitch on={globalOn} onCheckedChange={() => setGlobalOn((value) => !value)} t={t} />
-      <LanguageSwitch language={language} setLanguage={setLanguage} t={t} />
-      <ThemeToggle theme={theme} setTheme={setTheme} t={t} />
+      {/* 语言切换：常驻顶栏，菜单里不再重复 */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon-sm" title={t.language} aria-label={t.language}>
+            <LanguagesIcon />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-28">
+          <DropdownMenuItem className={language === 'zh-CN' ? 'bg-accent text-accent-foreground' : ''} onSelect={() => setLanguage('zh-CN')}>
+            中文
+          </DropdownMenuItem>
+          <DropdownMenuItem className={language === 'en-US' ? 'bg-accent text-accent-foreground' : ''} onSelect={() => setLanguage('en-US')}>
+            English
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon-sm" title={t.more} aria-label={t.more}>
+            <EllipsisIcon />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-40">
+          <DropdownMenuItem onSelect={onOpenLog}>
+            <ScrollTextIcon />
+            {t.matchLog}
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setTheme((value) => (value === THEME.DARK ? THEME.LIGHT : THEME.DARK))}>
+            {theme === THEME.DARK ? <SunIcon /> : <MoonIcon />}
+            {theme === THEME.DARK ? t.themeLight : t.themeDark}
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={state.openOptionsWithSidebar}>
+            <SettingsIcon />
+            {t.settings}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }
@@ -163,6 +171,12 @@ function AppInner({ initialSettings }: { initialSettings: AppSettings }) {
   );
   const meta = pageMeta(view, t);
   const toggleSidebar = () => state.setSidebarCollapsed((value) => !value);
+  // 匹配日志弹窗挂在应用层（不止规则页可开：顶栏"更多"菜单在任意视图都能打开它）
+  const [logOpen, setLogOpen] = React.useState(false);
+  const openLog = React.useCallback(() => setLogOpen(true), []);
+  const matchLogPane = (
+    <MatchLogPane open={logOpen} onOpenChange={setLogOpen} entries={state.matchLog} t={state.t} status={state.pageStatus} onClear={state.clearMatchLog} />
+  );
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   // 常驻侧栏与抽屉共用同一份内容；抽屉关闭动作挂在导航回调上
   const renderSidebar = () => (
@@ -209,12 +223,12 @@ function AppInner({ initialSettings }: { initialSettings: AppSettings }) {
       <div className="flex h-full w-full flex-col bg-background text-foreground">
         <header className="flex items-center justify-between gap-2 border-b px-3 py-2.5">
           <div className="min-w-0">
-            <div className="truncate text-sm font-semibold">{t.groupManagement}</div>
-            <div className="truncate text-xs text-muted-foreground">{t.rulesDescription}</div>
+            <div className="truncate text-base font-semibold">{t.groupManagement}</div>
           </div>
-          <HeaderActions state={state} showQuickImport />
+          <HeaderActions state={state} showQuickImport onOpenLog={openLog} />
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto">{content}</div>
+        {matchLogPane}
         <Toaster theme={state.theme as 'dark' | 'light'} position="bottom-center" />
       </div>
     );
@@ -267,28 +281,20 @@ function AppInner({ initialSettings }: { initialSettings: AppSettings }) {
                 />
               )}
               {!sidePanel && <Separator orientation="vertical" className="h-5 max-[860px]:hidden" />}
-              <div className="grid min-w-0 gap-1">
-                <div className="truncate text-sm font-semibold">{meta.title}</div>
-                <div className="truncate text-xs text-muted-foreground">{meta.subtitle}</div>
+              {/* Side Panel 没有侧栏，标题前放品牌 logo（同侧栏）标识来源 */}
+              <div className="flex min-w-0 items-center gap-2.5">
+                {sidePanel && <ApiMark size={20} />}
+                <div className="truncate text-base font-semibold">{meta.title}</div>
               </div>
             </div>
             <div className="flex items-center gap-2.5">
-              <HeaderActions state={state} showQuickImport={sidePanel} />
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className={view === VIEW.SETTINGS ? 'bg-accent text-accent-foreground' : ''}
-                onClick={state.openOptionsWithSidebar}
-                title={t.settings}
-                aria-label={t.settings}
-              >
-                <SettingsIcon />
-              </Button>
+              <HeaderActions state={state} showQuickImport={sidePanel} onOpenLog={openLog} />
             </div>
           </header>
           <div className="min-h-0 flex-1 overflow-y-auto">{content}</div>
         </main>
       </div>
+      {matchLogPane}
       <Toaster theme={state.theme as 'dark' | 'light'} position="bottom-center" />
     </div>
   );

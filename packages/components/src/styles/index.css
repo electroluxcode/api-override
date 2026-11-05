@@ -113,3 +113,27 @@
   /* biome-ignore lint/complexity/noImportantStyles: 覆盖 CodeMirror 自带的 focus 描边 */
   outline: none !important;
 }
+
+/* 未保存修改提示条抖动（返回触发，强调需要处理底部按钮组） */
+@keyframes shake {
+  10%,
+  90% {
+    transform: translateX(-1px);
+  }
+  20%,
+  80% {
+    transform: translateX(2px);
+  }
+  30%,
+  50%,
+  70% {
+    transform: translateX(-4px);
+  }
+  40%,
+  60% {
+    transform: translateX(4px);
+  }
+}
+.animate-shake {
+  animation: shake 0.5s ease-in-out both;
+}

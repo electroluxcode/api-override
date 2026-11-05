@@ -105,16 +105,18 @@ export function RulesPage({
                     </Button>
                   </div>
                 ) : (
-                  <h2
-                    className="cursor-pointer truncate text-base font-semibold hover:text-foreground/80"
-                    title={group.name}
-                    onClick={() => {
-                      setTitleValue(group.name || '');
-                      setTitleRenaming(true);
-                    }}
-                  >
-                    {group.name}
-                  </h2>
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <h2
+                      className="cursor-pointer truncate text-base font-semibold hover:text-foreground/80"
+                      title={group.name}
+                      onClick={() => {
+                        setTitleValue(group.name || '');
+                        setTitleRenaming(true);
+                      }}
+                    >
+                      {group.name}
+                    </h2>
+                  </div>
                 )}
               </div>
               <div className="flex items-center gap-3">

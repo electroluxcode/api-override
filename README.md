@@ -6,8 +6,6 @@
 
 **浏览器扩展版的 Ajax/Fetch 响应拦截与 Mock 工具**
 
-拦截任意页面的 XHR / Fetch 请求，用规则分组管理响应覆盖，完整兼容 Mock.js 语法。
-
 [English](./README.en.md) · 简体中文
 
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
@@ -20,13 +18,13 @@
 
 ## ✨ 特性
 
-- 🗂️ **规则分组** — 规则按分组管理，支持包含 / `*` 通配符 / 正则匹配，可限定请求方法；分组支持拖拽排序，右键置顶 / 置底
-- 🎯 **响应覆盖** — JSON 全量覆盖或增量合并、纯文本、JavaScript / HTML / CSS 静态资源替换、文件响应、响应头与状态码覆盖
-- 📤 **请求覆盖** — 非 GET 请求可用规则直接替换请求体（Payload），同样支持 Mock.js 模板
-- 🧪 **Mock.js 语法** — `@cname`、`@integer(1, 100)`、`"list|1-3"` 开箱即用，裸占位符免引号；编辑器输入 `@` 唤出占位符提示，内置 Mock 挂载为 `window.Mock`，可直接调用
-- 🧠 **专家模式** — 用 JS 函数动态生成请求头、请求体与响应
-- 📦 **导入导出** — 规则组 JSON 导入（按名称合并）、导出与空白模板下载；面板（Side Panel / Popup）顶栏支持快速导入
-- 🌗 **明暗主题** — 中英双语，亮色 / 暗色主题切换
+- 🗂️ **规则分组** — 包含 / `*` 通配符 / 正则匹配，可限定请求方法，支持拖拽排序
+- 🎯 **响应覆盖** — JSON 全量 / 增量、Text / JavaScript / HTML / CSS / 文件响应，响应头与状态码
+- 📤 **请求覆盖** — 非 GET 请求可按规则替换请求体
+- 🧪 **Mock.js** — `@cname`、`@integer(1, 100)` 开箱即用，内置 Mock 挂载为 `window.Mock`
+- 🧠 **专家模式** — JS 函数动态生成请求头 / 请求体 / 响应
+- 📦 **导入导出** — 分组 JSON 导入导出，面板顶栏支持快速导入
+- 🌗 **明暗主题** — 中英双语
 
 ## 🚀 快速开始
 
@@ -35,30 +33,9 @@ pnpm install
 pnpm build
 ```
 
-1. 打开 `chrome://extensions`，开启「开发者模式」
-2. 「加载已解压的扩展程序」→ 选择 `apps/extension/dist`
-3. 点击工具栏图标，新建规则即可生效
-
-### 基本用法
-
-1. 新建分组（或使用默认分组），点击「新建规则」
-2. 填写匹配地址，如 `/v1/activity-banner`（支持 `*` 通配符与正则）
-3. 选择响应格式（JSON / Text / JavaScript / HTML / CSS / File），填入响应内容，保存并开启规则
-4. 打开右上角「总开关」，刷新目标页面即可生效
-
-## 🧪 Mock.js 支持
-
-响应内容完整兼容 [Mock.js](https://github.com/nuysoft/Mock) 语法
-
-```json
-{
-  "code": 0,
-  "name": "@cname",
-  "list|1-3": [{ "id|+1": 1, "email": "@email" }]
-}
-```
-
-内置 Mock.js 会挂载为页面里的 `window.Mock`，规则的响应 / 请求体内容与专家函数中可直接调用 `Mock.mock(...)`、`Mock.Random.xxx()` 等。
+1. `chrome://extensions` 开启「开发者模式」→「加载已解压的扩展程序」→ 选择 `apps/extension/dist`
+2. 新建规则，填匹配地址（如 `/v1/activity-banner`），选响应格式并保存
+3. 打开「总开关」，刷新目标页面即可生效
 
 ## 📄 License
 

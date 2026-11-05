@@ -2,6 +2,7 @@ import { autocompletion, type CompletionContext, type CompletionResult } from '@
 import { json, jsonParseLinter } from '@codemirror/lang-json';
 import { linter, type Diagnostic } from '@codemirror/lint';
 import CodeMirror, { EditorView } from '@uiw/react-codemirror';
+import { BracesIcon } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 
@@ -154,6 +155,7 @@ export default function JsonEditor({
   theme,
   height = 240,
   placeholder,
+  validate = true,
   t
 }: {
   value: string;
@@ -162,6 +164,8 @@ export default function JsonEditor({
   theme?: string;
   height?: number;
   placeholder?: string;
+  /** 关闭 JSON 校验：内容不一定是完整 JSON 时使用（如 Body 匹配的片段/正则） */
+  validate?: boolean;
   t: { format: string; invalidJson: string };
 }) {
   const codeMirrorTheme = theme === 'dark' ? 'dark' : 'light';
@@ -171,11 +175,11 @@ export default function JsonEditor({
   const extensions = useMemo(
     () => [
       json(),
-      linter(mockAwareJsonLinter),
+      ...(validate ? [linter(mockAwareJsonLinter)] : []),
       EditorView.lineWrapping,
       autocompletion({ override: mode === 'headers' ? [headerCompletion] : [mockCompletion, docKeyCompletion] })
     ],
-    [mode]
+    [mode, validate]
   );
   const format = () => {
     try {
@@ -199,8 +203,8 @@ export default function JsonEditor({
     <div className="overflow-hidden rounded-lg border">
       <div className="flex items-center justify-end gap-2 border-b bg-muted/40 px-2 py-1">
         {status && <span className="mr-auto text-xs text-destructive">{status}</span>}
-        <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={format}>
-          {t.format}
+        <Button type="button" variant="ghost" size="icon-sm" className="size-6" onClick={format} title={t.format} aria-label={t.format}>
+          <BracesIcon />
         </Button>
       </div>
       <CodeMirror

@@ -1,4 +1,10 @@
+// 页面脚本的唯一源码（TS）：由 apps/extension/scripts/build-extension-scripts.mjs 打包为 dist/pageScripts/main.js，
+// content.js 先注入 vendor/mock.js 再注入 main.js。修改页面 hook 行为只改这里，不再手工维护静态脚本。
 import { FILTER_TYPE, OVERRIDE_MODE, RESPONSE_TYPE } from './constants';
+import { PAGE_SCRIPT_EVENT } from './messaging';
+// 内置 Mock.js 已由 content.js 预先注入的 vendor/mock.js 挂到 window.Mock，页面与规则（覆盖内容、专家函数）可直接调用；
+// 内部模板处理统一使用这里的引用，避免页面后续加载自己的 Mock 影响行为
+const vendoredMock = (globalThis as any).Mock;
 const hasResponseOverride = (rule) =>
   Boolean(
     rule &&
@@ -31,11 +37,11 @@ const decodeDataUrl = (dataUrl) => {
 };
 const responseBytes = (rule) =>
   rule?.responseType === RESPONSE_TYPE.FILE ? decodeDataUrl(rule.responseFileData) : new TextEncoder().encode(String(rule?.overrideTxt ?? ''));
-const responseText = (rule) => new TextDecoder().decode(responseBytes(rule));
+const responseText = (rule) => mockResponseText(new TextDecoder().decode(responseBytes(rule)), rule?.responseType);
 // Mock.js 模板支持：json/text 响应应用 Mock.mock()（@占位符 与 'name|rule' 数据模板），其余类型（file/js/html/css）按字面返回；
-// 含 @ 或 "|规则键" 才处理，普通内容原样返回（与 apps/extension/public/pageScripts/main.js 保持一致）
+// 含 @ 或 "|规则键" 才处理，普通内容原样返回（页面脚本以本文件为唯一源码，构建产物 dist/pageScripts/main.js）
 const mockResponseText = (text, responseType) => {
-  const Mock = globalThis.Mock;
+  const Mock = vendoredMock || globalThis.Mock;
   if (!Mock) {
     console.warn('[Ajax Modifier] Mock.js 未加载，@模板跳过处理（内置 Mock 初始化失败，请重载扩展后刷新页面）');
     return text;
@@ -91,6 +97,75 @@ const applyResponseHeaders = (headers, rule) => {
 };
 
 // 命名空间
+const isPlainJsonObject = (value: unknown): boolean => value !== null && typeof value === 'object' && !Array.isArray(value);
+const tryParseJson = (text: string): unknown => {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+};
+// 规则 JSON 是否为请求体 JSON 的「子集」：对象递归包含，数组/原始值要求完全相等（忽略键序与空白）
+const jsonSubset = (a: unknown, b: unknown): boolean => {
+  if (isPlainJsonObject(a) && isPlainJsonObject(b)) {
+    return Object.keys(a as Record<string, unknown>).every(
+      (key) => key in (b as Record<string, unknown>) && jsonSubset((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key])
+    );
+  }
+  return JSON.stringify(a) === JSON.stringify(b);
+};
+// 包含语义的请求体匹配：两边都能解析为 JSON 时优先按结构比较（格式化/紧凑写法均可），否则退回原样文本包含
+const bodyMatchContains = (pattern: string, body: unknown): boolean => {
+  if (typeof body !== 'string' || !body) return false;
+  const ruleJson = tryParseJson(pattern);
+  const bodyJson = tryParseJson(body);
+  if (ruleJson !== undefined && bodyJson !== undefined) {
+    return jsonSubset(ruleJson, bodyJson) || JSON.stringify(bodyJson).indexOf(JSON.stringify(ruleJson)) > -1;
+  }
+  return body.indexOf(pattern) > -1;
+};
+// 规则是否配置了 Body 匹配（空串视为未配置，只作兜底）
+const hasBodyCondition = (item: any): boolean => typeof item?.matchBody === 'string' && !!item.matchBody.trim();
+
+// 上报匹配判定日志：经页面事件中继到面板的"匹配日志"展示（url/body 截断，避免刷爆消息通道）
+// 附带匹配时刻脚本实际持有的规则数——排查"面板有规则但未命中"（脚本拿到的规则与面板不一致）的关键线索
+const reportMatchLog = (url: string, method: string, body: unknown, matched: any) => {
+  try {
+    const rules = (ajax_interceptor_qoweifjqon.settings.ajaxInterceptor_rules || []) as any[];
+    window.dispatchEvent(new CustomEvent(PAGE_SCRIPT_EVENT, {
+      detail: {
+        logType: 'match',
+        url: String(url || '').slice(0, 300),
+        method: method || 'GET',
+        body: typeof body === 'string' ? body.slice(0, 200) : '',
+        matched: !!matched,
+        ruleKey: matched && matched.key ? matched.key : '',
+        label: (matched && (matched.label || matched.match)) || '',
+        // 命中规则的 Body 匹配内容：直接看"命中的是它，因为它的 Body 匹配是这个"
+        ruleMatchBody: matched && typeof matched.matchBody === 'string' ? matched.matchBody.slice(0, 100) : '',
+        ruleCount: rules.length,
+        enabledCount: rules.filter((item) => item && item.switchOn !== false).length
+      }
+    }));
+  } catch {}
+};
+
+// 上报脚本运行状态（总开关 / 规则数）：面板展示"页面脚本此刻看到的配置"，
+// 总开关关闭时请求完全绕过不留痕迹，状态行能让这种"静默不生效"可见
+const reportStatus = () => {
+  try {
+    const rules = (ajax_interceptor_qoweifjqon.settings.ajaxInterceptor_rules || []) as any[];
+    window.dispatchEvent(new CustomEvent(PAGE_SCRIPT_EVENT, {
+      detail: {
+        logType: 'status',
+        switchOn: !!ajax_interceptor_qoweifjqon.settings.ajaxInterceptor_switchOn,
+        ruleCount: rules.length,
+        enabledCount: rules.filter((item) => item && item.switchOn !== false).length
+      }
+    }));
+  } catch {}
+};
+
 const ajax_interceptor_qoweifjqon = {
   settings: {
     ajaxInterceptor_switchOn: false,
@@ -120,10 +195,11 @@ const ajax_interceptor_qoweifjqon = {
       (item) => item && typeof (item as any).matchBody === 'string' && (item as any).matchBody
     );
   },
-  // 获取匹配到的规则项
+  // 获取匹配到的规则项：用请求 URL 遍历规则，配置了 Body 匹配且命中的优先改写，
+  // 未配置 Body 匹配的规则只作兜底（避免兜底规则挡住后面的精确规则）
   getMatchedInterface: ({ thisRequestUrl = '', thisMethod = '', thisRequestBody = '' }) => {
-    return ajax_interceptor_qoweifjqon.settings.ajaxInterceptor_rules.find((item) => {
-      const { filterType = FILTER_TYPE.NORMAL, limitMethod = 'ALL', switchOn = true, match, matchBody } = item as any;
+    const matches = (item: any) => {
+      const { filterType = FILTER_TYPE.NORMAL, limitMethod = 'ALL', switchOn = true, match, matchBody } = item;
       const matchedMethod = thisMethod === limitMethod || limitMethod === 'ALL';
       let matchedRequest = false;
       if (filterType === FILTER_TYPE.NORMAL) {
@@ -144,9 +220,9 @@ const ajax_interceptor_qoweifjqon = {
           matchedRequest = false;
         }
       }
-      // 请求体匹配：仅在规则配置了 matchBody 时校验，语义与 match 一致（normal=包含/通配，regex=正则）
+      // 请求体匹配：仅在规则配置了 matchBody 时校验（与 hasBodyCondition 一致按 trim 判空，空白串不算配置）
       let matchedBody = true;
-      if (typeof matchBody === 'string' && matchBody) {
+      if (typeof matchBody === 'string' && matchBody.trim()) {
         if (filterType === FILTER_TYPE.REGEX) {
           try {
             matchedBody = new RegExp(matchBody, 'i').test(thisRequestBody);
@@ -160,11 +236,13 @@ const ajax_interceptor_qoweifjqon = {
             matchedBody = false;
           }
         } else {
-          matchedBody = typeof thisRequestBody === 'string' && thisRequestBody.indexOf(matchBody) > -1;
+          matchedBody = bodyMatchContains(matchBody.trim(), thisRequestBody);
         }
       }
       return switchOn && matchedMethod && matchedRequest && matchedBody;
-    });
+    };
+    const rules = (ajax_interceptor_qoweifjqon.settings.ajaxInterceptor_rules || []) as any[];
+    return rules.find((item) => hasBodyCondition(item) && matches(item)) || rules.find((item) => matches(item));
   },
   // 执行用户输入的函数，如果有错误会抛出到控制台
   executeStringFunction: (stringFunction, args, funcName = '') => {
@@ -243,8 +321,9 @@ const ajax_interceptor_qoweifjqon = {
           else if (xhr.responseType === 'blob') overrideResponse = new Blob([bytes], { type: responseFileType || 'application/octet-stream' });
           else overrideResponse = responseText(matchedInterface);
         } else if (overrideTxt && !isExpert) {
-          // 普通模式支持全量或 JSON 增量覆盖
-          overrideResponse = overrideMode === OVERRIDE_MODE.INCREMENTAL && responseType === RESPONSE_TYPE.JSON ? mergeJsonResponse(this.responseText, overrideTxt) : overrideTxt;
+          // 普通模式支持全量或 JSON 增量覆盖；覆盖内容先经过 Mock.js 模板处理
+          const mockedTxt = mockResponseText(overrideTxt, responseType);
+          overrideResponse = overrideMode === OVERRIDE_MODE.INCREMENTAL && responseType === RESPONSE_TYPE.JSON ? mergeJsonResponse(this.responseText, mockedTxt) : mockedTxt;
           // 状态用200覆盖
           if (ajax_interceptor_qoweifjqon.settings.ajaxInterceptor_always200On && this.status !== 200) {
             overrideStatus = 200;
@@ -289,7 +368,7 @@ const ajax_interceptor_qoweifjqon = {
         else if (responseType === RESPONSE_TYPE.TEXT && noContentType) this._responseHeaders['Content-Type'] = 'text/plain';
         if (!pageScriptEventDispatched) {
           window.dispatchEvent(
-            new CustomEvent('pageScript', {
+            new CustomEvent(PAGE_SCRIPT_EVENT, {
               detail: {
                 url: this.responseURL,
                 match
@@ -388,6 +467,8 @@ const ajax_interceptor_qoweifjqon = {
               thisRequestBody: ajax_interceptor_qoweifjqon.stringifyRequestBody(args[0])
             });
           }
+          // 匹配判定上报到面板"匹配日志"（命中与未命中都记录，便于排查）
+          reportMatchLog(this._openArgs[1], this._openArgs[0], ajax_interceptor_qoweifjqon.stringifyRequestBody(args[0]), this._matchedInterface);
           const matchedInterface = this._matchedInterface;
           if (matchedInterface) {
             // modify headers
@@ -522,22 +603,23 @@ const ajax_interceptor_qoweifjqon = {
 
     let bodyData = data?.body;
 
-    // 请求体匹配：有规则配置了 matchBody 时，先提取请求体文本再匹配（流式请求体读出后回填，保证请求仍可正常发送）
+    // 请求体匹配：有规则配置了 matchBody 时，先拿到请求体文本再匹配。
+    // fetch 的 body 只能消费一次，因此绝不读取原始 body：Request 对象用 clone() 读副本，
+    // 流式 body 用 tee() 分出一路读取、另一路照常发送；读取失败降级为"不校验请求体"继续匹配，hook 不抛错
     if (ajax_interceptor_qoweifjqon.hasBodyMatchRules()) {
-      let bodySource = bodyData;
-      if (isReadableStream(bodySource)) {
-        bodySource = await readReadableStream(bodySource);
+      try {
         if (data instanceof Request) {
-          args[0] = new Request(args[0], {
-            body: createReadableStream(bodySource),
-            duplex: 'half'
-          } as RequestInit);
-          data = args[0];
-        } else if (data) {
-          data.body = createReadableStream(bodySource);
+          bodyData = await data.clone().text();
+        } else if (isReadableStream(bodyData)) {
+          const [forMatch, forSend] = bodyData.tee();
+          bodyData = await readReadableStream(forMatch);
+          if (data) data.body = forSend;
+        } else {
+          bodyData = ajax_interceptor_qoweifjqon.stringifyRequestBody(bodyData);
         }
+      } catch {
+        bodyData = '';
       }
-      bodyData = ajax_interceptor_qoweifjqon.stringifyRequestBody(bodySource);
     }
 
     const matchedInterface = ajax_interceptor_qoweifjqon.getMatchedInterface({
@@ -545,6 +627,8 @@ const ajax_interceptor_qoweifjqon = {
       thisMethod: data && data.method,
       thisRequestBody: typeof bodyData === 'string' ? bodyData : ''
     });
+    // 匹配判定上报到面板"匹配日志"（命中与未命中都记录，便于排查）
+    reportMatchLog(inputUrl, data && data.method, typeof bodyData === 'string' ? bodyData : '', matchedInterface);
     if (matchedInterface && args) {
       if (bodyData && typeof bodyData !== 'string' && isReadableStream(data.body)) {
         bodyData = await readReadableStream(bodyData);
@@ -597,7 +681,7 @@ const ajax_interceptor_qoweifjqon = {
     return ajax_interceptor_qoweifjqon.originalFetch(...args).then(async (response) => {
       if (matchedInterface && hasResponseOverride(matchedInterface)) {
         window.dispatchEvent(
-          new CustomEvent('pageScript', {
+          new CustomEvent(PAGE_SCRIPT_EVENT, {
             detail: {
               url: response.url,
               match: matchedInterface.match
@@ -612,9 +696,10 @@ const ajax_interceptor_qoweifjqon = {
         if (responseType === RESPONSE_TYPE.FILE && responseFileData) {
           overrideResponse = responseText(matchedInterface);
         } else if (overrideTxt && !isExpert) {
-          // 普通模式支持全量或 JSON 增量覆盖
+          // 普通模式支持全量或 JSON 增量覆盖；覆盖内容先经过 Mock.js 模板处理
+          const mockedTxt = mockResponseText(overrideTxt, responseType);
           const originalText = responseType === RESPONSE_TYPE.JSON ? await response.clone().text() : '';
-          overrideResponse = overrideMode === OVERRIDE_MODE.INCREMENTAL && responseType === RESPONSE_TYPE.JSON ? mergeJsonResponse(originalText, overrideTxt) : overrideTxt;
+          overrideResponse = overrideMode === OVERRIDE_MODE.INCREMENTAL && responseType === RESPONSE_TYPE.JSON ? mergeJsonResponse(originalText, mockedTxt) : mockedTxt;
           // 状态用200覆盖
           if (ajax_interceptor_qoweifjqon.settings.ajaxInterceptor_always200On && response.status !== 200) {
             overrideStatus = 200;
@@ -704,6 +789,11 @@ const applyRuntimeSetting = (data: any = {}) => {
         : value;
   };
   if (data.type === 'ajaxInterceptor' && data.to === 'pageScript') {
+    // 面板挂载时会请求一次当前状态，用于展示"脚本此刻看到的配置"
+    if (data.key === 'ajaxInterceptor_requestStatus') {
+      reportStatus();
+      return;
+    }
     setSetting(data.key, data.value);
   } else if (data.key && data.value !== undefined) {
     setSetting(data.key, data.value);
@@ -721,6 +811,8 @@ const applyRuntimeSetting = (data: any = {}) => {
     window.XMLHttpRequest = ajax_interceptor_qoweifjqon.originalXHR;
     window.fetch = ajax_interceptor_qoweifjqon.originalFetch;
   }
+  // 设置变化后同步一次脚本状态到面板
+  reportStatus();
 };
 
 window.addEventListener('message', (event) => applyRuntimeSetting(event.data), false);
