@@ -1,6 +1,6 @@
 {
   "name": "API Override",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Modern React Ajax/Fetch interceptor with groups and import/export",
   "permissions": ["storage", "scripting", "sidePanel"],
   "background": {
