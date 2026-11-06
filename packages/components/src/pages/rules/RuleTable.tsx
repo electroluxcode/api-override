@@ -48,7 +48,7 @@ export function RuleTable({ rules, t, onOpen, onToggle, onDelete, onRename, onDu
               <ContextMenuTrigger asChild>
                 <TableRow className={cn('cursor-pointer', rule.switchOn === false && 'opacity-60')} onClick={() => onOpen(rule.key)}>
                   <TableCell>
-                    <span className={cn('block size-2 rounded-full', rule.switchOn !== false ? 'bg-emerald-500' : 'bg-muted-foreground/40')} />
+                    <span className={cn('block size-2 rounded-full', rule.switchOn !== false ? 'bg-emerald-600 dark:bg-emerald-500' : 'bg-muted-foreground/40')} />
                   </TableCell>
                   <TableCell className="max-w-40 truncate font-medium" title={rule.label}>
                     {rule.label}

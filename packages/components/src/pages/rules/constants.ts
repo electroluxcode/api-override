@@ -47,13 +47,14 @@ export const rowsToMatch = (match, rows) => {
   return query ? `${path}?${query}` : path;
 };
 
-// 请求方法下拉配色（参考 API 客户端惯例：彩色底 + 同色文字），整体铺在触发器上；GET 用金色、ALL 用绿色与具体方法区分，未知值回退为中性色
+// 请求方法下拉配色（参考 API 客户端惯例：彩色底 + 同色文字），整体铺在触发器上；
+// 亮色主题用 600 级文字保证深度，暗色主题回退 400 级避免发闷；GET 金色、ALL 绿色与具体方法区分，未知值回退为中性色
 export const METHOD_TRIGGER_COLORS = {
-  ALL: 'bg-emerald-500/15! text-emerald-500 hover:bg-emerald-500/25!',
-  GET: 'bg-amber-500/25! text-amber-500 hover:bg-amber-500/35! dark:text-amber-400',
-  POST: 'bg-orange-500/15! text-orange-400 hover:bg-orange-500/25!',
-  PUT: 'bg-sky-500/15! text-sky-500 hover:bg-sky-500/25!',
-  PATCH: 'bg-violet-500/15! text-violet-400 hover:bg-violet-500/25!',
-  DELETE: 'bg-red-500/15! text-red-500 hover:bg-red-500/25!'
+  ALL: 'bg-emerald-500/20! text-emerald-600 hover:bg-emerald-500/30! dark:text-emerald-400',
+  GET: 'bg-amber-500/25! text-amber-600 hover:bg-amber-500/35! dark:text-amber-400',
+  POST: 'bg-orange-500/20! text-orange-600 hover:bg-orange-500/30! dark:text-orange-400',
+  PUT: 'bg-sky-500/20! text-sky-600 hover:bg-sky-500/30! dark:text-sky-400',
+  PATCH: 'bg-violet-500/20! text-violet-600 hover:bg-violet-500/30! dark:text-violet-400',
+  DELETE: 'bg-red-500/20! text-red-600 hover:bg-red-500/30! dark:text-red-400'
 };
 export const METHOD_TRIGGER_FALLBACK = 'bg-foreground/15! text-foreground/85 hover:bg-foreground/20!';

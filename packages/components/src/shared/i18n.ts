@@ -166,6 +166,8 @@ window.__MOCK_FLAG__ = true;
     headers: '响应 Headers',
     matchBody: 'Body 匹配',
     matchBodyHint: '按请求体内容区分同一地址的不同请求，匹配方式跟随上方（包含/正则），留空不校验。内容为完整 JSON 时自动按结构比较（忽略空格与键序，规则对象为请求体子集即命中）。规则遍历时配置了 Body 匹配且命中的优先改写，未配置的仅作兜底。',
+    requestCard: '请求拦截 —— 拦截页面请求后，按规则进行匹配',
+    responseCard: '响应拦截 —— 拦截响应后，按规则修改返回内容',
     matchLog: '匹配日志',
     matchLogEmpty: '暂无记录。页面发起一次请求后，这里会显示规则判定结果（命中哪条或未命中）。',
     matchLogClear: '清空匹配日志',
@@ -438,6 +440,8 @@ window.__MOCK_FLAG__ = true;
     matchBody: 'Body match',
     matchBodyHint:
       'Distinguishes requests to the same URL by their body, using the match mode above (contains / regex). Leave empty to skip. When both sides parse as JSON they are compared structurally (whitespace and key order ignored; the rule object may be a subset of the body). Rules with a body condition take priority when matched; rules without one only act as fallback.',
+    requestCard: 'Request — rules are matched after the request is intercepted',
+    responseCard: 'Response — the returned content is modified after interception',
     matchLog: 'Match log',
     matchLogEmpty: 'No entries yet. Send a request on the page and the match decision (which rule hit, or none) shows up here.',
     matchLogClear: 'Clear match log',

@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { Tooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import JsonEditor from '@/components/JsonEditor';
 import { ArrowLeftIcon, CheckIcon, InfoIcon, ListPlusIcon, PlusIcon, Trash2Icon, XIcon } from 'lucide-react';
@@ -111,7 +112,7 @@ export function RuleEditor({ rule, t, theme = 'light', intercepted = [], onChang
             <Select value={draft.limitMethod || 'ALL'} onValueChange={(value) => patch({ limitMethod: value })}>
               <SelectTrigger
                 className={cn(
-                  'w-auto rounded-l-md rounded-r-none border-0 gap-1.5 px-2.5 font-semibold shadow-none [&>[data-slot=select-value]]:gap-1.5',
+                  'w-auto rounded-l-md rounded-r-none border-0 gap-1.5 px-2.5 font-bold shadow-none data-[size=default]:h-8 [&>[data-slot=select-value]]:gap-1.5',
                   METHOD_TRIGGER_COLORS[draft.limitMethod] || METHOD_TRIGGER_FALLBACK
                 )}
                 title={t.method}
@@ -129,7 +130,7 @@ export function RuleEditor({ rule, t, theme = 'light', intercepted = [], onChang
             </Select>
             <Select value={draft.filterType || FILTER_TYPE.NORMAL} onValueChange={(value) => patch({ filterType: value })}>
               <SelectTrigger
-                className="w-auto rounded-none rounded-r-md border-0 gap-1.5 bg-sky-500/15! px-2.5 text-sky-500 shadow-none hover:bg-sky-500/25! [&>[data-slot=select-value]]:gap-1.5"
+                className="w-auto rounded-none rounded-r-md border-0 gap-1.5 bg-sky-500/20! px-2.5 font-bold text-sky-600 shadow-none hover:bg-sky-500/30! dark:text-sky-400 data-[size=default]:h-8 [&>[data-slot=select-value]]:gap-1.5"
                 title={`${t.filter}（Contains / Regex）`}
               >
                 <SelectValue />
@@ -150,6 +151,13 @@ export function RuleEditor({ rule, t, theme = 'light', intercepted = [], onChang
             style={reqHeightMode === 'fixed' ? { height: reqHeight } : { minHeight: RULE_REQ_MIN_HEIGHT, maxHeight: reqHeight }}
           >
             <TabsList variant="line">
+              {/* 卡片标识：ⓘ 悬停查看上方是请求拦截还是响应拦截 */}
+              {/* 卡片标识：ⓘ 悬停查看上方是请求拦截还是响应拦截；-mr 收紧与右侧页签的间距 */}
+              <Tooltip content={t.requestCard}>
+                <span className="-mr-1.5 inline-flex cursor-help text-muted-foreground">
+                  <InfoIcon className="size-3.5" />
+                </span>
+              </Tooltip>
               <TabsTrigger variant="line" value="params">
                 {/* 页签名为通用名，不做国际化 */}
                 Param
@@ -199,10 +207,11 @@ export function RuleEditor({ rule, t, theme = 'light', intercepted = [], onChang
                 {/* Body 匹配：同一地址的不同请求按请求体内容区分（如不同的 plan_time_type），留空不校验 */}
                 <Label className="flex items-center gap-1 text-xs text-muted-foreground">
                   {t.matchBody}
-                  {/* svg 上的原生 title 不可靠，包一层 span 保证悬停提示生效 */}
-                  <span title={t.matchBodyHint} aria-label={t.matchBodyHint} className="inline-flex cursor-help">
-                    <InfoIcon className="size-3" />
-                  </span>
+                  <Tooltip content={t.matchBodyHint}>
+                    <span className="inline-flex cursor-help text-muted-foreground">
+                      <InfoIcon className="size-3" />
+                    </span>
+                  </Tooltip>
                 </Label>
                 {/* 内容是包含/通配/正则匹配串，不一定是完整 JSON，关闭 JSON 校验 */}
                 <JsonEditor
@@ -229,6 +238,11 @@ export function RuleEditor({ rule, t, theme = 'light', intercepted = [], onChang
             style={{ minHeight: RULE_REQ_MIN_HEIGHT, maxHeight: RULE_RESP_MAX_HEIGHT }}
           >
             <TabsList variant="line">
+              <Tooltip content={t.responseCard}>
+                <span className="-mr-1.5 inline-flex cursor-help text-muted-foreground">
+                  <InfoIcon className="size-3.5" />
+                </span>
+              </Tooltip>
               <TabsTrigger variant="line" value="body">{t.tabBody}</TabsTrigger>
               <TabsTrigger variant="line" value="headers">{t.tabHeaders}</TabsTrigger>
             </TabsList>
@@ -240,7 +254,7 @@ export function RuleEditor({ rule, t, theme = 'light', intercepted = [], onChang
                       value={draft.responseType || RESPONSE_TYPE.JSON}
                       onValueChange={(value) => patch({ responseType: value, ...(value === RESPONSE_TYPE.FILE || value === RESPONSE_TYPE.JS ? { overrideMode: OVERRIDE_MODE.FULL } : {}) })}
                     >
-                      <SelectTrigger className="h-10 rounded-none border-0 gap-1 px-2 shadow-none [&>[data-slot=select-value]]:gap-1" title={t.responseType}>
+                      <SelectTrigger className="rounded-none border-0 gap-1 px-2 shadow-none [&>[data-slot=select-value]]:gap-1" title={t.responseType}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -258,7 +272,7 @@ export function RuleEditor({ rule, t, theme = 'light', intercepted = [], onChang
                       onValueChange={(value) => patch({ overrideMode: value })}
                       disabled={draft.responseType === RESPONSE_TYPE.FILE || draft.responseType === RESPONSE_TYPE.JS}
                     >
-                      <SelectTrigger className="h-10 rounded-none border-0 gap-1 px-2 shadow-none [&>[data-slot=select-value]]:gap-1" title={`${t.incremental}：${t.incrementalHint}`}>
+                      <SelectTrigger className="rounded-none border-0 gap-1 px-2 shadow-none [&>[data-slot=select-value]]:gap-1" title={`${t.incremental}：${t.incrementalHint}`}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -272,7 +286,6 @@ export function RuleEditor({ rule, t, theme = 'light', intercepted = [], onChang
             <div className="min-h-0 flex-1 overflow-y-auto p-3">
               {respTab === 'body' ? (
                 <div className="grid content-start gap-4">
-                  {draft.overrideMode === OVERRIDE_MODE.INCREMENTAL && <p className="text-xs text-muted-foreground">{t.incrementalHint}</p>}
                   {draft.responseType === RESPONSE_TYPE.FILE ? (
                     <div className="grid content-start gap-1.5">
                       <Label className="text-xs text-muted-foreground">File</Label>
@@ -320,9 +333,11 @@ export function RuleEditor({ rule, t, theme = 'light', intercepted = [], onChang
                 <div className="grid content-start gap-1.5">
                   <Label className="flex items-center gap-1 text-xs text-muted-foreground">
                     {t.headers}
-                    <span title={t.headersHint} aria-label={t.headersHint} className="inline-flex cursor-help">
-                      <InfoIcon className="size-3" />
-                    </span>
+                    <Tooltip content={t.headersHint}>
+                      <span className="inline-flex cursor-help text-muted-foreground">
+                        <InfoIcon className="size-3" />
+                      </span>
+                    </Tooltip>
                   </Label>
                   <JsonEditor
                     value={headersValue}

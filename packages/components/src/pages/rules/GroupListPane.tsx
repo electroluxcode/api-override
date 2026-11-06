@@ -11,6 +11,7 @@ import { GROUP_DRAG_START_MOVE_PX, GROUP_LIST_COLLAPSED_THRESHOLD, GROUP_LIST_DE
 
 export function GroupListPane({ groups, activeGroupId, t, onSelect, onAdd, onRename, onToggle, onDelete, onBatchEnable, onBatchDelete, onReorderGroups }) {
   const [batch, setBatch] = useState(false);
+  const [blankMenuOpen, setBlankMenuOpen] = useState(false);
   const [selected, setSelected] = useState([]);
   const [renaming, setRenaming] = useState(null);
   const [width, setWidth] = useState(readStoredGroupListWidth);
@@ -152,8 +153,16 @@ export function GroupListPane({ groups, activeGroupId, t, onSelect, onAdd, onRen
         </div>
         {!collapsed && <Badge variant="secondary">{groups.length}</Badge>}
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-1.5">
-        {groups.map((group, index) => {
+      {/* 空白区域右键 → 新建分组；右击到分组项时 preventDefault 交由条目自身的右键菜单处理 */}
+      <ContextMenu open={blankMenuOpen} onOpenChange={setBlankMenuOpen}>
+        <ContextMenuTrigger asChild>
+          <div
+            className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-1.5"
+            onContextMenu={(event) => {
+              if ((event.target as HTMLElement).closest('button')) event.preventDefault();
+            }}
+          >
+            {groups.map((group, index) => {
           const dragging = drag?.id === group.id;
           const fromIndex = drag ? groups.findIndex((item) => item.id === drag.id) : -1;
           const dragStep = (itemRefs.current[drag?.id]?.offsetHeight || 36) + GROUP_LIST_ITEM_GAP;
@@ -202,7 +211,7 @@ export function GroupListPane({ groups, activeGroupId, t, onSelect, onAdd, onRen
                     {selected.includes(group.id) && <CheckIcon className="size-3" />}
                   </span>
                 )}
-                <span className={cn('size-2 shrink-0 rounded-full', group.enabled ? 'bg-emerald-500' : 'bg-muted-foreground/40')} />
+                <span className={cn('size-2 shrink-0 rounded-full', group.enabled ? 'bg-emerald-600 dark:bg-emerald-500' : 'bg-muted-foreground/40')} />
                 {!collapsed && <span className="min-w-0 flex-1 truncate font-medium">{group.name || 'group'}</span>}
                 {!collapsed && <span className="text-xs text-muted-foreground">{group.rules.length}</span>}
               </button>
@@ -220,7 +229,12 @@ export function GroupListPane({ groups, activeGroupId, t, onSelect, onAdd, onRen
           </ContextMenu>
           );
         })}
-      </div>
+            </div>
+            </ContextMenuTrigger>
+            <ContextMenuContent>
+              <ContextMenuItem onSelect={() => onAdd()}>{t.addGroup}</ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
       {batch && (
         <div className={cn('flex items-center border-t', collapsed ? 'flex-col gap-1 p-1' : 'gap-2 p-2')}>
           {collapsed ? (
