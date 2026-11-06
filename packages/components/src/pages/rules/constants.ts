@@ -1,7 +1,7 @@
 // 规则组列表宽度可拖拽调节并持久化；低于阈值进入收起（图标）态
 export const GROUP_LIST_MIN_WIDTH = 48;
 export const GROUP_LIST_MAX_WIDTH = 480;
-export const GROUP_LIST_DEFAULT_WIDTH = 320;
+export const GROUP_LIST_DEFAULT_WIDTH = 200;
 export const GROUP_LIST_COLLAPSED_THRESHOLD = 96;
 // 规则组拖拽排序：按下后移动超过该阈值即进入拖拽（无需长按），更小的位移视为普通点击
 export const GROUP_DRAG_START_MOVE_PX = 5;
