@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { METHOD_TRIGGER_COLORS, METHOD_TRIGGER_FALLBACK } from './constants';
 import { cn } from '@/lib/utils';
-import { PlusIcon } from 'lucide-react';
+import { CopyIcon, PlusIcon, PowerIcon, SquarePenIcon, Trash2Icon } from 'lucide-react';
 import { useState } from 'react';
 
 export function RuleTable({ rules, t, onOpen, onToggle, onDelete, onRename, onDuplicate, emptyAction }) {
@@ -72,23 +72,33 @@ export function RuleTable({ rules, t, onOpen, onToggle, onDelete, onRename, onDu
                   {/* 操作按钮有自己的语义，阻止冒泡避免误触发行点击进入详情 */}
                   <TableCell className="text-right" onClick={(event) => event.stopPropagation()}>
                     <div className="flex justify-end gap-1">
-                      <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => onOpen(rule.key)}>
-                        {t.detail}
-                      </Button>
-                      <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => onToggle(rule.key)}>
-                        {rule.switchOn === false ? t.enable : t.disable}
-                      </Button>
-                      <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => onDuplicate(rule.key)}>
-                        {t.copy}
+                      <Button type="button" variant="ghost" size="icon-sm" className="size-7 text-muted-foreground" title={t.detail} aria-label={t.detail} onClick={() => onOpen(rule.key)}>
+                        <SquarePenIcon />
                       </Button>
                       <Button
                         type="button"
                         variant="ghost"
-                        size="sm"
-                        className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                        size="icon-sm"
+                        className="size-7 text-muted-foreground"
+                        title={rule.switchOn === false ? t.enable : t.disable}
+                        aria-label={rule.switchOn === false ? t.enable : t.disable}
+                        onClick={() => onToggle(rule.key)}
+                      >
+                        <PowerIcon />
+                      </Button>
+                      <Button type="button" variant="ghost" size="icon-sm" className="size-7 text-muted-foreground" title={t.copy} aria-label={t.copy} onClick={() => onDuplicate(rule.key)}>
+                        <CopyIcon />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="size-7 text-destructive hover:text-destructive"
+                        title={t.delete}
+                        aria-label={t.delete}
                         onClick={() => onDelete(rule.key)}
                       >
-                        {t.delete}
+                        <Trash2Icon />
                       </Button>
                     </div>
                   </TableCell>

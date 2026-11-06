@@ -116,7 +116,6 @@ export function RuleEditor({ rule, t, theme = 'light', intercepted = [], onChang
                 )}
                 title={t.method}
               >
-                <InfoIcon className="size-3 opacity-80" />
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -133,7 +132,6 @@ export function RuleEditor({ rule, t, theme = 'light', intercepted = [], onChang
                 className="w-auto rounded-none rounded-r-md border-0 gap-1.5 bg-sky-500/15! px-2.5 text-sky-500 shadow-none hover:bg-sky-500/25! [&>[data-slot=select-value]]:gap-1.5"
                 title={`${t.filter}（Contains / Regex）`}
               >
-                <InfoIcon className="size-3 opacity-80" />
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -199,7 +197,13 @@ export function RuleEditor({ rule, t, theme = 'light', intercepted = [], onChang
             <TabsContent value="payload" className="min-h-0 flex-1 overflow-y-auto p-3">
               <div className="grid content-start gap-1.5">
                 {/* Body 匹配：同一地址的不同请求按请求体内容区分（如不同的 plan_time_type），留空不校验 */}
-                <Label className="text-xs text-muted-foreground">{t.matchBody}</Label>
+                <Label className="flex items-center gap-1 text-xs text-muted-foreground">
+                  {t.matchBody}
+                  {/* svg 上的原生 title 不可靠，包一层 span 保证悬停提示生效 */}
+                  <span title={t.matchBodyHint} aria-label={t.matchBodyHint} className="inline-flex cursor-help">
+                    <InfoIcon className="size-3" />
+                  </span>
+                </Label>
                 {/* 内容是包含/通配/正则匹配串，不一定是完整 JSON，关闭 JSON 校验 */}
                 <JsonEditor
                   value={draft.matchBody || ''}
@@ -210,7 +214,6 @@ export function RuleEditor({ rule, t, theme = 'light', intercepted = [], onChang
                   validate={false}
                   t={t}
                 />
-                <small className="text-xs text-muted-foreground">{t.matchBodyHint}</small>
               </div>
             </TabsContent>
           </Tabs>
@@ -238,7 +241,6 @@ export function RuleEditor({ rule, t, theme = 'light', intercepted = [], onChang
                       onValueChange={(value) => patch({ responseType: value, ...(value === RESPONSE_TYPE.FILE || value === RESPONSE_TYPE.JS ? { overrideMode: OVERRIDE_MODE.FULL } : {}) })}
                     >
                       <SelectTrigger className="h-10 rounded-none border-0 gap-1 px-2 shadow-none [&>[data-slot=select-value]]:gap-1" title={t.responseType}>
-                        <InfoIcon className="size-3 text-muted-foreground" />
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -257,7 +259,6 @@ export function RuleEditor({ rule, t, theme = 'light', intercepted = [], onChang
                       disabled={draft.responseType === RESPONSE_TYPE.FILE || draft.responseType === RESPONSE_TYPE.JS}
                     >
                       <SelectTrigger className="h-10 rounded-none border-0 gap-1 px-2 shadow-none [&>[data-slot=select-value]]:gap-1" title={`${t.incremental}：${t.incrementalHint}`}>
-                        <InfoIcon className="size-3 text-muted-foreground" />
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -317,7 +318,12 @@ export function RuleEditor({ rule, t, theme = 'light', intercepted = [], onChang
                 </div>
               ) : (
                 <div className="grid content-start gap-1.5">
-                  <Label className="text-xs text-muted-foreground">{t.headers}</Label>
+                  <Label className="flex items-center gap-1 text-xs text-muted-foreground">
+                    {t.headers}
+                    <span title={t.headersHint} aria-label={t.headersHint} className="inline-flex cursor-help">
+                      <InfoIcon className="size-3" />
+                    </span>
+                  </Label>
                   <JsonEditor
                     value={headersValue}
                     onChange={(next) => {
@@ -338,7 +344,6 @@ export function RuleEditor({ rule, t, theme = 'light', intercepted = [], onChang
                     placeholder={'{\n  "Content-Type": "application/json"\n}'}
                     t={t}
                   />
-                  <small className="text-xs text-muted-foreground">{t.headersHint}</small>
                 </div>
               )}
               {intercepted.length > 0 && (
