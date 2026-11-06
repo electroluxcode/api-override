@@ -1,6 +1,6 @@
 import type { AppSettings } from '@api-override/core/types';
 import { THEME, VIEW } from '@api-override/core/constants';
-import { EllipsisIcon, LanguagesIcon, MoonIcon, PanelLeftIcon, ScrollTextIcon, SettingsIcon, SunIcon, UploadIcon } from 'lucide-react';
+import { DownloadIcon, EllipsisIcon, LanguagesIcon, MoonIcon, PanelLeftIcon, ScrollTextIcon, SettingsIcon, SunIcon, UploadIcon } from 'lucide-react';
 import * as React from 'react';
 import { toast } from 'sonner';
 import '../styles/index.css';
@@ -8,7 +8,7 @@ import Sidebar from '@/components/Sidebar';
 import { ApiMark } from '@/components/ApiMark';
 import { Button } from '@/components/ui/button';
 import { ConfirmProvider } from '@/components/ui/confirm';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Separator } from '@/components/ui/separator';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Toaster } from '@/components/ui/sonner';
@@ -36,35 +36,14 @@ function GlobalSwitch({ on, onCheckedChange, t }) {
   );
 }
 
-// 顶栏只保留四个入口：上传（有导入入口的形态）/ 全局开关 / 语言切换 / 更多菜单。
-// 低频操作（匹配日志、主题、设置）收纳进"更多"菜单，窄宽度下不再互相挤压；
+// 顶栏只保留三个入口：全局开关 / 语言切换 / 更多菜单。
+// 低频操作（导入、导出、匹配日志、主题、设置）收纳进"更多"菜单，窄宽度下不再互相挤压；
 // 挂载在顶栏的菜单让 Side Panel / Popup 等窄形态也能触达全部功能。
-function HeaderActions({ state, showQuickImport = false, onOpenLog }) {
+function HeaderActions({ state, onOpenLog }) {
   const { t, globalOn, setGlobalOn, language, setLanguage, theme, setTheme } = state;
   const [importOpen, setImportOpen] = React.useState(false);
   return (
     <div className="flex items-center gap-2.5">
-      {showQuickImport && (
-        <>
-          {/* 面板（Side Panel / Popup）没有侧栏入口，顶栏直接提供快速导入 */}
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => setImportOpen(true)}
-            title={t.usageImportTitle}
-            aria-label={t.usageImportTitle}
-          >
-            <UploadIcon />
-          </Button>
-          <QuickImportDialog
-            t={t}
-            onImportJson={state.importGroupsText}
-            open={importOpen}
-            onOpenChange={setImportOpen}
-            onImported={() => toast(t.importSuccess)}
-          />
-        </>
-      )}
       <GlobalSwitch on={globalOn} onCheckedChange={() => setGlobalOn((value) => !value)} t={t} />
       {/* 语言切换：常驻顶栏，菜单里不再重复 */}
       <DropdownMenu>
@@ -89,6 +68,15 @@ function HeaderActions({ state, showQuickImport = false, onOpenLog }) {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-40">
+          <DropdownMenuItem onSelect={() => setImportOpen(true)}>
+            <UploadIcon />
+            {t.import}
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={state.exportGroups}>
+            <DownloadIcon />
+            {t.export}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={onOpenLog}>
             <ScrollTextIcon />
             {t.matchLog}
@@ -103,6 +91,14 @@ function HeaderActions({ state, showQuickImport = false, onOpenLog }) {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      {/* 快速导入弹窗：由"更多"菜单的导入项触发 */}
+      <QuickImportDialog
+        t={t}
+        onImportJson={state.importGroupsText}
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onImported={() => toast(t.importSuccess)}
+      />
     </div>
   );
 }
@@ -225,7 +221,7 @@ function AppInner({ initialSettings }: { initialSettings: AppSettings }) {
           <div className="min-w-0">
             <div className="truncate text-base font-semibold">{t.groupManagement}</div>
           </div>
-          <HeaderActions state={state} showQuickImport onOpenLog={openLog} />
+          <HeaderActions state={state} onOpenLog={openLog} />
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto">{content}</div>
         {matchLogPane}
@@ -288,7 +284,7 @@ function AppInner({ initialSettings }: { initialSettings: AppSettings }) {
               </div>
             </div>
             <div className="flex items-center gap-2.5">
-              <HeaderActions state={state} showQuickImport={sidePanel} onOpenLog={openLog} />
+              <HeaderActions state={state} onOpenLog={openLog} />
             </div>
           </header>
           <div className="min-h-0 flex-1 overflow-y-auto">{content}</div>

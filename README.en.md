@@ -18,11 +18,12 @@ English · [简体中文](./README.md)
 
 ## ✨ Features
 
-- 🗂️ **Rule groups** — include / `*` wildcard / regex matching with optional method filter, drag to reorder
-- 🎯 **Response overrides** — JSON full / incremental, Text / JavaScript / HTML / CSS / file responses, headers & status codes
+- 🗂️ **Rule groups** — include / `*` wildcard / regex matching with method & body filters, drag to reorder
+- 🎯 **Response overrides** — JSON full / incremental, Text / JavaScript / HTML / CSS / file, headers & status codes
 - 📤 **Request override** — replace the request body of non-GET requests per rule
-- 🧪 **Mock.js** — `@cname`, `@integer(1, 100)` out of the box; the bundled Mock is exposed as `window.Mock`
-- 📦 **Import / export** — group JSON import & export, quick import from the panel header
+- 📜 **Match log** — review rule evaluations per request
+- 🧪 **Mock.js** — `@cname` and friends out of the box; bundled Mock exposed as `window.Mock`
+- 📦 **Import / export** — one-click group JSON import & export
 - 🌗 **Themes** — light / dark, Chinese & English
 
 ## 🚀 Quick start

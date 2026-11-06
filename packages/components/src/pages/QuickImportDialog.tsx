@@ -1,8 +1,8 @@
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { CopyIcon } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { CopyIcon, FileUpIcon } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 
 async function copyText(text: string) {
   try {
@@ -28,12 +28,22 @@ async function copyText(text: string) {
 export function QuickImportDialog({ t, onImportJson, open, onOpenChange, onImported }) {
   const [importText, setImportText] = useState('');
   const [copied, setCopied] = useState(false);
+  const fileRef = useRef(null);
   useEffect(() => {
     if (!copied) return undefined;
     const timer = window.setTimeout(() => setCopied(false), 2000);
     return () => window.clearTimeout(timer);
   }, [copied]);
   const handleCopyDoc = async () => setCopied(await copyText(t.usageDoc));
+  // 从文件导入：读取 .json 文件内容填入文本框，用户确认后统一走 handleImport（便于导入前查看/修改）
+  const handleChooseFile = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = ''; // 允许重复选择同一文件
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setImportText(String(reader.result || ''));
+    reader.readAsText(file);
+  };
   const handleImport = () => {
     if (!importText.trim() || !onImportJson) return;
     if (onImportJson(importText)?.ok) {
@@ -57,10 +67,17 @@ export function QuickImportDialog({ t, onImportJson, open, onOpenChange, onImpor
           spellCheck="false"
         />
         <DialogFooter className="sm:justify-between">
-          <Button type="button" variant="outline" size="sm" onClick={handleCopyDoc}>
-            <CopyIcon />
-            {copied ? t.usageCopied : t.usageCopyDoc}
-          </Button>
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
+              <FileUpIcon />
+              {t.importFromFile}
+            </Button>
+            <input ref={fileRef} type="file" accept=".json,application/json,.txt" className="hidden" onChange={handleChooseFile} />
+            <Button type="button" variant="outline" size="sm" onClick={handleCopyDoc}>
+              <CopyIcon />
+              {copied ? t.usageCopied : t.usageCopyDoc}
+            </Button>
+          </div>
           <div className="flex gap-2">
             <Button
               type="button"

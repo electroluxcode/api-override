@@ -15,6 +15,7 @@ export const defaultSettings: AppSettings = {
   ui_language: 'zh-CN',
   ui_theme: 'dark',
   ui_sidebar_collapsed: false,
+  ui_autosave: true,
   proxyEnabled: false,
   proxyControlUrl: 'http://127.0.0.1:17880',
   proxyMappings: []
