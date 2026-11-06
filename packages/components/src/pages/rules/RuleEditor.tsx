@@ -154,7 +154,8 @@ export function RuleEditor({ rule, t, theme = 'light', intercepted = [], onChang
               {/* 卡片标识：ⓘ 悬停查看上方是请求拦截还是响应拦截 */}
               {/* 卡片标识：ⓘ 悬停查看上方是请求拦截还是响应拦截；-mr 收紧与右侧页签的间距 */}
               <Tooltip content={t.requestCard}>
-                <span className="-mr-1.5 inline-flex cursor-help text-muted-foreground">
+                {/* -mb-px 与页签的下探偏移一致，保证 ⓘ 与右侧页签垂直居中对齐 */}
+                <span className="-mb-px -mr-1.5 inline-flex cursor-help items-center text-muted-foreground">
                   <InfoIcon className="size-3.5" />
                 </span>
               </Tooltip>
@@ -239,7 +240,7 @@ export function RuleEditor({ rule, t, theme = 'light', intercepted = [], onChang
           >
             <TabsList variant="line">
               <Tooltip content={t.responseCard}>
-                <span className="-mr-1.5 inline-flex cursor-help text-muted-foreground">
+                <span className="-mb-px -mr-1.5 inline-flex cursor-help items-center text-muted-foreground">
                   <InfoIcon className="size-3.5" />
                 </span>
               </Tooltip>
