@@ -1,6 +1,6 @@
 {
   "name": "api-override",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "private": true,
   "packageManager": "pnpm@11.22.0",
   "scripts": {

@@ -5,19 +5,40 @@ import { clearMatchLogStore, queueMatchLog } from '@api-override/core/matchLogSt
 
 let contentLoadedIds: number[] = [];
 
-chrome.scripting.getRegisteredContentScripts({ ids: ['testing-scripts-gen'] }, async (scripts) => {
-  if (scripts && scripts.length) {
-    await chrome.scripting.unregisterContentScripts({ ids: ['testing-scripts-gen'] });
+// content script 注册（persistAcrossSessions，升级扩展时补注册缺失项）：
+//   - content.js（ISOLATED）：事件中继 + 设置下发
+//   - pageScripts/main.js（MAIN）：页面 hook，document_start 同步执行，抢在页面脚本之前装好 fetch/XHR hook。
+//     为什么不用 content.js 注入：MV3 下 content script 注入的内联脚本受扩展自身 CSP 约束（禁 unsafe-inline，
+//     必被拦截），src 注入又是异步的，页面加载初期的请求会漏——MAIN world 注册是 MV3 的正解（Chrome 111+）
+const CONTENT_SCRIPT_DEFS: chrome.scripting.RegisteredContentScript[] = [
+  {
+    id: 'testing-scripts-gen',
+    js: ['./content.js'],
+    matches: ['<all_urls>'],
+    runAt: 'document_start',
+    allFrames: true
+  },
+  {
+    id: 'testing-scripts-gen-page',
+    js: ['./pageScripts/main.js'],
+    matches: ['<all_urls>'],
+    runAt: 'document_start',
+    allFrames: true,
+    world: 'MAIN' as unknown as chrome.scripting.ExecutionWorld
   }
-  chrome.scripting.registerContentScripts([
-    {
-      id: 'testing-scripts-gen',
-      js: ['./content.js'],
-      matches: ['<all_urls>'],
-      runAt: 'document_start',
-      allFrames: true
-    }
-  ]);
+];
+
+chrome.scripting.getRegisteredContentScripts(async (scripts) => {
+  const known = new Set(CONTENT_SCRIPT_DEFS.map((def) => def.id));
+  const stale = (scripts || []).filter((script) => !known.has(script.id)).map((script) => script.id);
+  const knownIds = new Set((scripts || []).map((script) => script.id));
+  const missing = CONTENT_SCRIPT_DEFS.filter((def) => !knownIds.has(def.id));
+  if (stale.length) {
+    await chrome.scripting.unregisterContentScripts({ ids: stale });
+  }
+  if (missing.length) {
+    await chrome.scripting.registerContentScripts(missing);
+  }
 });
 
 if (chrome.sidePanel?.setPanelBehavior) {

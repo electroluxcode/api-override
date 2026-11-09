@@ -58,8 +58,9 @@ for (const { entry, out, guard, header } of TARGETS) {
     banner: bannerLines.length ? { js: bannerLines.join('\n') } : undefined,
     footer: guard ? { js: '})()' } : undefined
   });
+  const text = result.outputFiles[0].text;
   const outFile = path.resolve(extDir, out);
   await mkdir(path.dirname(outFile), { recursive: true });
-  await writeFile(outFile, result.outputFiles[0].text);
+  await writeFile(outFile, text);
   console.log('extension script built:', path.relative(process.cwd(), outFile));
 }

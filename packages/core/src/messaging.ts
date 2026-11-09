@@ -8,6 +8,14 @@ export const PAGE_SCRIPT_EVENT = 'pageScript';
 /** runtime 消息通道类型：content.js / background / 面板共用 */
 export const RUNTIME_MSG_TYPE = 'ajaxInterceptor';
 
+/**
+ * localStorage 键：content.js 每次下发设置时写入的缓存，页面脚本启动时同步读取。
+ * 页面脚本由 content.js 在 document_start 注入（textContent 同步内联为主、src 注入为 CSP 回退），
+ * 设置无法随脚本带下去；有了这份缓存（同源各 tab 共享，sessionStorage 做不到），
+ * hook 在页面脚本发起早期请求之前就装好。首次使用时缓存为空，由 content.js 的异步下发兜底。
+ */
+export const PAGE_SETTINGS_CACHE_KEY = '__apiOverridePageSettings';
+
 /** runtime 消息的路由目标：background=SW 处理；iframe=广播给面板；content=中继给页面；pageScript=页面脚本 */
 export type RuntimeEventTarget = 'background' | 'iframe' | 'content' | 'pageScript';
 

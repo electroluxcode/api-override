@@ -1,7 +1,7 @@
 // 页面脚本的唯一源码（TS）：由 apps/extension/scripts/build-extension-scripts.mjs 打包为 dist/pageScripts/main.js，
 // content.js 先注入 vendor/mock.js 再注入 main.js。修改页面 hook 行为只改这里，不再手工维护静态脚本。
 import { FILTER_TYPE, OVERRIDE_MODE, RESPONSE_TYPE } from './constants';
-import { PAGE_SCRIPT_EVENT } from './messaging';
+import { PAGE_SCRIPT_EVENT, PAGE_SETTINGS_CACHE_KEY } from './messaging';
 // 内置 Mock.js 已由 content.js 预先注入的 vendor/mock.js 挂到 window.Mock，页面与规则（覆盖内容、专家函数）可直接调用；
 // 内部模板处理统一使用这里的引用，避免页面后续加载自己的 Mock 影响行为
 const vendoredMock = (globalThis as any).Mock;
@@ -678,7 +678,7 @@ const ajax_interceptor_qoweifjqon = {
         }
       }
     }
-    return ajax_interceptor_qoweifjqon.originalFetch(...args).then(async (response) => {
+    const processResponse = async (response) => {
       if (matchedInterface && hasResponseOverride(matchedInterface)) {
         window.dispatchEvent(
           new CustomEvent(PAGE_SCRIPT_EVENT, {
@@ -776,7 +776,8 @@ const ajax_interceptor_qoweifjqon = {
       } else {
         return response;
       }
-    });
+    };
+    return ajax_interceptor_qoweifjqon.originalFetch(...args).then(processResponse);
   }
 };
 
@@ -834,4 +835,18 @@ globalThis.apiOverride = {
     applyRuntimeSetting();
   }
 };
-applyRuntimeSetting();
+
+// 启动时同步应用 localStorage 缓存的上一次设置（content.js 下发时写入，键见 messaging.ts）：
+// 本脚本一执行就装好 hook，抢在页面脚本的早期请求之前；刷新 / 二次导航乃至新 tab 首屏都能命中
+// （localStorage 同源各 tab 共享）。首次使用（缓存为空或解析失败）时退回 content.js 的异步下发。
+try {
+  const cachedSettings = JSON.parse(localStorage.getItem(PAGE_SETTINGS_CACHE_KEY) || 'null');
+  if (cachedSettings && typeof cachedSettings === 'object') {
+    if ('ajaxInterceptor_rules' in cachedSettings) applyRuntimeSetting({ key: 'ajaxInterceptor_rules', value: cachedSettings.ajaxInterceptor_rules });
+    if ('ajaxInterceptor_switchOn' in cachedSettings) applyRuntimeSetting({ key: 'ajaxInterceptor_switchOn', value: cachedSettings.ajaxInterceptor_switchOn });
+  } else {
+    applyRuntimeSetting();
+  }
+} catch {
+  applyRuntimeSetting();
+}

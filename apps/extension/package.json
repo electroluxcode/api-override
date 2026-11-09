@@ -1,6 +1,6 @@
 {
   "name": "@api-override/extension",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "private": true,
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 8887 --strictPort --open /index.html",
