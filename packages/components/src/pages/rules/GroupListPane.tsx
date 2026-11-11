@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { BanIcon, CheckIcon, ListChecks as ListChecksIcon, PlusIcon, Trash2Icon } from 'lucide-react';
 import { saveSetting } from '@/shared/platform';
-import { GROUP_DRAG_START_MOVE_PX, GROUP_LIST_COLLAPSED_THRESHOLD, GROUP_LIST_DEFAULT_WIDTH, GROUP_LIST_ITEM_GAP, GROUP_LIST_MAX_WIDTH, GROUP_LIST_MIN_WIDTH, readStoredGroupListWidth } from './constants';
+import { GROUP_DRAG_START_MOVE_PX, GROUP_LIST_COLLAPSED_THRESHOLD, GROUP_LIST_DEFAULT_WIDTH, GROUP_LIST_ITEM_GAP, GROUP_LIST_MAX_WIDTH, GROUP_LIST_MIN_WIDTH, GROUP_SWEEP_LONG_PRESS_MS, readStoredGroupListWidth } from './constants';
 
 export function GroupListPane({ groups, activeGroupId, t, onSelect, onAdd, onRename, onToggle, onDelete, onBatchEnable, onBatchDelete, onReorderGroups }) {
   const [batch, setBatch] = useState(false);
@@ -22,6 +22,8 @@ export function GroupListPane({ groups, activeGroupId, t, onSelect, onAdd, onRen
   const suppressClickRef = useRef(false);
   const widthRef = useRef(width);
   widthRef.current = width;
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
   const collapsed = width < GROUP_LIST_COLLAPSED_THRESHOLD;
   const toggleSelected = (id) => setSelected((items) => (items.includes(id) ? items.filter((item) => item !== id) : [...items, id]));
   const exitBatch = () => {
@@ -75,6 +77,82 @@ export function GroupListPane({ groups, activeGroupId, t, onSelect, onAdd, onRen
       }
     });
     return best;
+  };
+  // 批量模式长按滑动选择：按住超过长按时长进入滑动选择，起点行按是否已选决定并入还是移出，
+  // 期间指针滑过的行按 [起点, 当前] 范围批量应用；松手抑制随后的 click（否则会把刚选中的行再点掉）。
+  // 仅响应鼠标/触控笔（触摸留给列表滚动），未进入滑动前的小位移按普通点击处理
+  const startSweepSelect = (event, id, index) => {
+    if ((event.pointerType !== 'mouse' && event.pointerType !== 'pen') || event.button !== 0) return;
+    const pointerId = event.pointerId;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    let active = false;
+    let mode = 'add';
+    let preSweep = [];
+    let anchorIndex = index;
+    let baseRects = [];
+    const hitIndex = (clientY) => {
+      let best = -1;
+      let bestDistance = Infinity;
+      baseRects.forEach((rect, rectIndex) => {
+        if (!rect) return;
+        const distance = Math.abs(clientY - (rect.top + rect.height / 2));
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          best = rectIndex;
+        }
+      });
+      return best;
+    };
+    const applyRange = (currentIndex) => {
+      const lo = Math.min(anchorIndex, currentIndex);
+      const hi = Math.max(anchorIndex, currentIndex);
+      const range = groups.slice(lo, hi + 1).map((group) => group.id);
+      setSelected(mode === 'add' ? Array.from(new Set([...preSweep, ...range])) : preSweep.filter((item) => !range.includes(item)));
+    };
+    const activate = () => {
+      active = true;
+      preSweep = selectedRef.current;
+      mode = preSweep.includes(id) ? 'remove' : 'add';
+      anchorIndex = index;
+      // 此刻没有 transform 干扰，快照各项基准位置供滑动命中检测使用
+      baseRects = groups.map((group) => {
+        const rect = itemRefs.current[group.id]?.getBoundingClientRect();
+        return rect ? { top: rect.top, height: rect.height } : null;
+      });
+      document.body.style.userSelect = 'none';
+      applyRange(anchorIndex);
+    };
+    const finish = () => {
+      clearTimeout(timer);
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', finish);
+      document.removeEventListener('pointercancel', finish);
+      if (active) {
+        document.body.style.userSelect = '';
+        suppressClickRef.current = true;
+      }
+    };
+    const onMove = (moveEvent) => {
+      if (moveEvent.pointerId !== pointerId) return;
+      if (!active) {
+        // 长按生效前发生了明显位移：视为普通点击，取消滑动选择
+        if (Math.abs(moveEvent.clientX - startX) > GROUP_DRAG_START_MOVE_PX || Math.abs(moveEvent.clientY - startY) > GROUP_DRAG_START_MOVE_PX) {
+          clearTimeout(timer);
+          document.removeEventListener('pointermove', onMove);
+          document.removeEventListener('pointerup', finish);
+          document.removeEventListener('pointercancel', finish);
+        }
+        return;
+      }
+      moveEvent.preventDefault();
+      const currentIndex = hitIndex(moveEvent.clientY);
+      if (currentIndex >= 0) applyRange(currentIndex);
+    };
+    const timer = setTimeout(activate, GROUP_SWEEP_LONG_PRESS_MS);
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', finish);
+    document.addEventListener('pointercancel', finish);
   };
   // 规则组拖拽排序：按下后移动超过阈值立即进入拖拽（无需长按），移动高亮落点，松手提交 onReorderGroups；
   // 仅响应鼠标/触控笔（触摸留给列表滚动与右键菜单），批量模式下禁用
@@ -190,7 +268,7 @@ export function GroupListPane({ groups, activeGroupId, t, onSelect, onAdd, onRen
                   group.enabled ? '' : 'opacity-60',
                   dragging && 'relative cursor-grabbing bg-accent opacity-90 ring-1 ring-primary'
                 )}
-                onPointerDown={(event) => startGroupDrag(event, group.id)}
+                onPointerDown={(event) => (batch ? startSweepSelect(event, group.id, index) : startGroupDrag(event, group.id))}
                 onClick={() => {
                   if (suppressClickRef.current) {
                     suppressClickRef.current = false;

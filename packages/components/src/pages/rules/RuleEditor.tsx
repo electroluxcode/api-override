@@ -304,7 +304,7 @@ export function RuleEditor({ rule, t, theme = 'light', intercepted = [], onChang
                   ) : draft.responseType === RESPONSE_TYPE.JS ? (
                     <div className="grid content-start gap-1.5">
                       <Textarea
-                        className="min-h-48 font-mono text-xs"
+                        className="min-h-48 max-h-96 font-mono text-xs"
                         value={draft.overrideTxt || ''}
                         onChange={(event) => patch({ overrideTxt: event.target.value })}
                         spellCheck="false"
@@ -326,7 +326,7 @@ export function RuleEditor({ rule, t, theme = 'light', intercepted = [], onChang
                     </div>
                   ) : (
                     <div className="grid content-start gap-1.5">
-                      <Textarea className="min-h-40 font-mono text-xs" value={draft.overrideTxt || ''} onChange={(event) => patch({ overrideTxt: event.target.value })} spellCheck="false" />
+                      <Textarea className="min-h-40 max-h-96 font-mono text-xs" value={draft.overrideTxt || ''} onChange={(event) => patch({ overrideTxt: event.target.value })} spellCheck="false" />
                     </div>
                   )}
                 </div>
@@ -424,7 +424,7 @@ export function RuleEditor({ rule, t, theme = 'light', intercepted = [], onChang
             <DialogDescription>{t.batchEditHint}</DialogDescription>
           </DialogHeader>
           <Textarea
-            className="min-h-48 font-mono text-xs"
+            className="min-h-48 max-h-64 font-mono text-xs"
             value={batchText}
             onChange={(event) => setBatchText(event.target.value)}
             spellCheck="false"

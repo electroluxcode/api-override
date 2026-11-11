@@ -6,13 +6,57 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator,
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { METHOD_TRIGGER_COLORS, METHOD_TRIGGER_FALLBACK } from './constants';
+import { METHOD_TRIGGER_COLORS, METHOD_TRIGGER_FALLBACK, RULE_TABLE_COL_DEFAULTS, RULE_TABLE_COL_MIN_WIDTH, readStoredRuleTableColWidths } from './constants';
 import { cn } from '@/lib/utils';
+import { saveSetting } from '@/shared/platform';
 import { CopyIcon, PlusIcon, PowerIcon, SquarePenIcon, Trash2Icon } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+
+// 列键与表头顺序一一对应；actions 列同样可拖宽，w-full 下剩余空间仍会按比例分摊
+const COL_KEYS = ['active', 'label', 'match', 'method', 'responseType', 'headers', 'actions'];
 
 export function RuleTable({ rules, t, onOpen, onToggle, onDelete, onRename, onDuplicate, emptyAction }) {
   const [renaming, setRenaming] = useState(null);
+  // 列宽可拖拽调节并持久化：表头右缘手柄拖动，双击恢复该列默认宽度
+  const [colWidths, setColWidths] = useState(readStoredRuleTableColWidths);
+  const colWidthsRef = useRef(colWidths);
+  colWidthsRef.current = colWidths;
+  const persistColWidths = (widths) => saveSetting('ui_rule_table_col_widths', widths);
+  const startColResize = (colKey, event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const startX = event.clientX;
+    const startWidth = colWidthsRef.current[colKey] ?? RULE_TABLE_COL_DEFAULTS[colKey];
+    const onMove = (moveEvent) => {
+      const width = Math.max(RULE_TABLE_COL_MIN_WIDTH, startWidth + (moveEvent.clientX - startX));
+      setColWidths((widths) => {
+        const next = { ...widths, [colKey]: width };
+        colWidthsRef.current = next;
+        return next;
+      });
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      persistColWidths(colWidthsRef.current);
+    };
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
+  const resetColWidth = (colKey) => {
+    setColWidths((widths) => {
+      const next = { ...widths };
+      delete next[colKey];
+      colWidthsRef.current = next;
+      persistColWidths(next);
+      return next;
+    });
+  };
+  const colLabel = (colKey) => ({ active: t.active, label: t.ruleName, match: t.match, method: t.method, responseType: t.responseType, headers: t.headers, actions: t.actions })[colKey];
   const commitRename = () => {
     const label = renaming?.label.trim();
     if (label) onRename(renaming.key, label);
@@ -30,16 +74,26 @@ export function RuleTable({ rules, t, onOpen, onToggle, onDelete, onRename, onDu
     );
   return (
     <div className="overflow-hidden rounded-lg border">
-      <Table>
+      {/* table-layout fixed + colgroup：列宽由拖拽手柄控制，w-full 下未满的宽度按比例分摊，超出则横向滚动 */}
+      <Table style={{ tableLayout: 'fixed' }}>
+        <colgroup>
+          {COL_KEYS.map((colKey) => (
+            <col key={colKey} style={{ width: colWidths[colKey] ?? RULE_TABLE_COL_DEFAULTS[colKey] }} />
+          ))}
+        </colgroup>
         <TableHeader>
           <TableRow className="bg-muted/50 hover:bg-muted/50">
-            <TableHead className="w-14">{t.active}</TableHead>
-            <TableHead>{t.ruleName}</TableHead>
-            <TableHead>{t.match}</TableHead>
-            <TableHead>{t.method}</TableHead>
-            <TableHead>{t.responseType}</TableHead>
-            <TableHead>{t.headers}</TableHead>
-            <TableHead className="text-right">{t.actions}</TableHead>
+            {COL_KEYS.map((colKey) => (
+              <TableHead key={colKey} className={cn('relative select-none', colKey === 'actions' && 'text-right')}>
+                {colLabel(colKey)}
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-y-0 right-0 z-10 w-1.5 cursor-col-resize transition-colors hover:bg-primary/40"
+                  onMouseDown={(event) => startColResize(colKey, event)}
+                  onDoubleClick={() => resetColWidth(colKey)}
+                />
+              </TableHead>
+            ))}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -50,10 +104,10 @@ export function RuleTable({ rules, t, onOpen, onToggle, onDelete, onRename, onDu
                   <TableCell>
                     <span className={cn('block size-2 rounded-full', rule.switchOn !== false ? 'bg-emerald-600 dark:bg-emerald-500' : 'bg-muted-foreground/40')} />
                   </TableCell>
-                  <TableCell className="max-w-40 truncate font-medium" title={rule.label}>
+                  <TableCell className="truncate font-medium" title={rule.label}>
                     {rule.label}
                   </TableCell>
-                  <TableCell className="max-w-56 truncate font-mono text-xs text-muted-foreground" title={rule.match || '—'}>
+                  <TableCell className="truncate font-mono text-xs text-muted-foreground" title={rule.match || '—'}>
                     {rule.match || '—'}
                   </TableCell>
                   <TableCell>

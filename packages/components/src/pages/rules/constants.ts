@@ -6,6 +6,8 @@ export const GROUP_LIST_COLLAPSED_THRESHOLD = 96;
 // 规则组拖拽排序：按下后移动超过该阈值即进入拖拽（无需长按），更小的位移视为普通点击
 export const GROUP_DRAG_START_MOVE_PX = 5;
 export const GROUP_LIST_ITEM_GAP = 4; // 与列表容器 gap-1 保持一致
+// 批量模式长按滑动选择：按住该时长后进入滑动选择（期间滑过的行按范围并入/移出已选）
+export const GROUP_SWEEP_LONG_PRESS_MS = 300;
 
 export const readStoredGroupListWidth = () => {
   try {
@@ -14,6 +16,21 @@ export const readStoredGroupListWidth = () => {
     if (Number.isFinite(width)) return Math.min(GROUP_LIST_MAX_WIDTH, Math.max(GROUP_LIST_MIN_WIDTH, width));
   } catch {}
   return GROUP_LIST_DEFAULT_WIDTH;
+};
+
+// 规则表格列宽：可拖拽调节并持久化（按列键存储，未设置过的列用默认值；拖拽把该键并入存储对象）
+export const RULE_TABLE_COL_MIN_WIDTH = 48;
+export const RULE_TABLE_COL_DEFAULTS = { active: 56, label: 140, match: 220, method: 96, responseType: 130, headers: 64, actions: 132 };
+export const readStoredRuleTableColWidths = () => {
+  try {
+    const stored = JSON.parse(localStorage.getItem('api_override_settings') || '{}').ui_rule_table_col_widths;
+    if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
+      return Object.fromEntries(
+        Object.entries(stored).filter(([key, value]) => key in RULE_TABLE_COL_DEFAULTS && Number(value) >= RULE_TABLE_COL_MIN_WIDTH)
+      );
+    }
+  } catch {}
+  return {};
 };
 
 // 规则详情：请求区最大高度可拖拽调节并持久化（双击分隔线恢复默认），内容不足时卡片自适应收窄

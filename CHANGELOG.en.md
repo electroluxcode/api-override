@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Chinese version: [CHANGELOG.md](./CHANGELOG.md)
 
+## [1.0.4] - 2026-11-11
+
+### Fixed
+
+- **Pasting very long text stretched dialogs / the rule editor** — an unbreakable single-line paste blew the dialog content area out horizontally (implicit grid tracks sized to content): the dialog base class now pins a single `grid-cols-1` track so content can't exceed the container width; the rule editor's plain-text / JavaScript response editors and the batch-edit dialog textarea are also height-capped (scrolling internally instead)
+
+### Added
+
+- **Long-press sweep multi-select in group batch mode** — hold a group item for 300ms and drag to batch select / deselect a range; if the anchor item was already selected the range is removed
+- **Drag-to-resize rule table columns** — drag the handle on a column header's right edge to resize any column, double-click to reset, widths persisted
+
+## [1.0.3] - 2026-11-11
+
+### Fixed
+
+- **Interception stopped working after collapsing the side panel** — the page script is now injected synchronously at `document_start` as a MAIN-world content script (statically registered via `chrome.scripting`) and applies a localStorage settings cache at startup, instead of waiting for a message from the panel; first-load requests after collapsing the panel or opening a new tab are now intercepted. Known edge: on a brand-new browser profile's very first visit to a site (cache not yet written) the earliest requests are still missed — a limitation shared by similar tools; keep the panel open and reload a few times
+
 ## [1.0.1] - 2026-11-05
 
 ### Added
