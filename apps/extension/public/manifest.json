@@ -1,7 +1,7 @@
 {
   "name": "API Override",
   "version": "1.0.4",
-  "description": "Modern React Ajax/Fetch interceptor with groups and import/export",
+  "description": "Open-source Ajax/Fetch interceptor & mock tool with groups and import/export",
   "permissions": ["storage", "scripting", "sidePanel"],
   "background": {
     "service_worker": "service_worker.js"
