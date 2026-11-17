@@ -24,11 +24,23 @@ export function GroupListPane({ groups, activeGroupId, t, onSelect, onAdd, onRen
   widthRef.current = width;
   const selectedRef = useRef(selected);
   selectedRef.current = selected;
+  // shift 范围选择的锚点：普通点击时更新为所点项下标，shift+点击选中 [锚点, 当前] 区间（锚点保持不变，便于连续扩展）
+  const anchorIndexRef = useRef(null);
   const collapsed = width < GROUP_LIST_COLLAPSED_THRESHOLD;
   const toggleSelected = (id) => setSelected((items) => (items.includes(id) ? items.filter((item) => item !== id) : [...items, id]));
+  // shift+点击范围选择：选中新选中 [锚点下标, 当前下标] 区间内的所有分组
+  const selectRange = (index) => {
+    const anchor = anchorIndexRef.current;
+    if (anchor === null || anchor === index) return false;
+    const lo = Math.min(anchor, index);
+    const hi = Math.max(anchor, index);
+    setSelected(groups.slice(lo, hi + 1).map((group) => group.id));
+    return true;
+  };
   const exitBatch = () => {
     setBatch(false);
     setSelected([]);
+    anchorIndexRef.current = null;
   };
   const allSelected = selected.length > 0 && selected.length === groups.length;
   const commitRename = () => {
@@ -114,6 +126,7 @@ export function GroupListPane({ groups, activeGroupId, t, onSelect, onAdd, onRen
       active = true;
       preSweep = selectedRef.current;
       mode = preSweep.includes(id) ? 'remove' : 'add';
+      anchorIndexRef.current = null; // 滑动选择是独立手势，重置 shift 锚点
       anchorIndex = index;
       // 此刻没有 transform 干扰，快照各项基准位置供滑动命中检测使用
       baseRects = groups.map((group) => {
@@ -269,13 +282,17 @@ export function GroupListPane({ groups, activeGroupId, t, onSelect, onAdd, onRen
                   dragging && 'relative cursor-grabbing bg-accent opacity-90 ring-1 ring-primary'
                 )}
                 onPointerDown={(event) => (batch ? startSweepSelect(event, group.id, index) : startGroupDrag(event, group.id))}
-                onClick={() => {
+                onClick={(event) => {
                   if (suppressClickRef.current) {
                     suppressClickRef.current = false;
                     return;
                   }
-                  if (batch) toggleSelected(group.id);
-                  else onSelect(group.id);
+                  if (batch) {
+                    // shift+点击：从锚点选中区间；无锚点或点在锚点自身时退化为普通点击
+                    if (event.shiftKey && selectRange(index)) return;
+                    anchorIndexRef.current = index;
+                    toggleSelected(group.id);
+                  } else onSelect(group.id);
                 }}
                 title={group.name}
               >
@@ -359,6 +376,7 @@ export function GroupListPane({ groups, activeGroupId, t, onSelect, onAdd, onRen
                 onClick={() => {
                   onBatchDelete(selected);
                   setSelected([]);
+                  anchorIndexRef.current = null;
                 }}
                 title={t.delete}
                 aria-label={t.delete}
